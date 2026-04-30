@@ -1,11 +1,1 @@
-/* src/index.css */
-
-/* 웹사이트 전체 공통 설정 (Global Styles) */
-body {
-    font-family: 'Malgun Gothic', sans-serif;
-    margin: 0;
-    padding: 20px;
-    background-color: #f8f9fa;
-    display: flex;
-    justify-content: center;
-}
+body { margin: 0; }
