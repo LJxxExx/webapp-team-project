@@ -1,11 +1,20 @@
-import React from 'react';
+import React, {useState} from 'react';
 import './App.css';
 
 /*
 메인페이지 예시
-
 */
+
 function App() {
+
+  // 로그인 상태 관리 useState(default: false = 로그아웃 상태)
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // 로그인/로그아웃 토글 함수 (test)
+  const toggleLogin = () => {
+    setIsLoggedIn(!isLoggedIn);
+  };
+
   return (
     <div className="container">
       {/* 네비게이션 영역 */}
@@ -24,14 +33,27 @@ function App() {
       {/* 본문 영역 */}
       <div className="main-layout">
         
-        {/* 좌측 사이드바 */}
+        {/* 좌측 사이드바: 로그인, 과제목록 */}
         <div className="left-column">
+          {/* 로그인, 내 정보 창 */}
           <div className="box">
-            내 정보
+            <button onClick={toggleLogin} className="btn-login">
+              {isLoggedIn ? '로그아웃' : '테스트용 로그인'}
+            </button>
+            {isLoggedIn ? '내 정보 (UsrName)' : '내정보'}
           </div>
           
-          <div className="box">
+          {/* 과제목록 */}
+          <div className="box relative-box">
             <h2 className="box-title">과제 요약</h2>
+
+            {/* 비 로그인 시 오버레이로 덮음*/}
+            {!isLoggedIn && (
+              <div className="login-overlay">
+                '로그인이 필요합니다'
+              </div>
+            )}
+
             <ul className="reminder-list">
               <li>
                 <input type="checkbox" id="task1" />
@@ -58,14 +80,21 @@ function App() {
           </div>
         </div>
 
-        {/* 우측 메인 콘텐츠 */}
+        {/* 우측 메인 콘텐츠: 시간표*/}
         <div className="right-column">
-          <div className="box">
+          <div className="box relative-box">
             <div className="timetable-header-wrap">
               <h2>시간표</h2>
               <button className="btn-settings">시간표 설정</button>
             </div>
             
+            {/* 비 로그인 시 오버레이로 덮음 */}
+            {!isLoggedIn && (
+              <div className="login-overlay">
+                '로그인이 필요합니다'
+              </div>
+            )}
+
             <table className="timetable">
               <thead>
                 <tr>

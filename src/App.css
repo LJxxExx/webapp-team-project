@@ -171,3 +171,45 @@ table.timetable .time-col {
 .academic-resources {
     min-height: 150px;
 }
+
+.relative-box {
+  position: relative;
+  overflow: hidden;
+}
+
+/* 반투명 가림막 (오버레이) */
+.login-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.85); /* 85% 불투명한 흰색 */
+    backdrop-filter: blur(4px); /* (선택) 배경을 살짝 흐릿하게 만들어주는 최신 효과 */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10; /* 다른 요소들보다 위로 올라오도록 설정 */
+    
+    font-size: 18px;
+    font-weight: bold;
+    color: #333;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* 임시 로그인 버튼 디자인 */
+.btn-login {
+    padding: 8px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.btn-login:hover {
+    background-color: #0056b3;
+}
