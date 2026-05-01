@@ -1,11 +1,8 @@
-/* src/index.css */
-
-/* 웹사이트 전체 공통 설정 (Global Styles) */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
-    font-family: 'Malgun Gothic', sans-serif;
-    margin: 0;
-    padding: 20px;
-    background-color: #f8f9fa;
-    display: flex;
-    justify-content: center;
+  font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #f8f9fa;
+  color: #1a1a1a;
+  font-size: 14px;
 }
+button { cursor: pointer; font-family: inherit; }

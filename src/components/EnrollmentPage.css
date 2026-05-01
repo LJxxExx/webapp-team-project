@@ -1,0 +1,35 @@
+.enroll-page {
+  position: relative;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 20px;
+}
+.enroll-page.blurred-section > *:not(.section-blur-overlay) {
+  filter: blur(5px);
+  pointer-events: none;
+}
+.enroll-sub { font-size: 13px; color: #888; margin-bottom: 16px; }
+.enroll-list { display: flex; flex-direction: column; gap: 10px; }
+.enroll-card {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; border: 1px solid #e5e7eb; border-radius: 8px;
+  gap: 12px;
+}
+.enroll-card.enrolled { border-color: #3b82f6; background: #eff6ff; }
+.enroll-card.full { opacity: 0.6; }
+.enroll-info { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.enroll-name { font-size: 14px; font-weight: 500; }
+.enroll-meta { font-size: 12px; color: #888; }
+.enroll-quota-bar { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.eq-track { flex: 1; height: 4px; background: #f3f4f6; border-radius: 99px; overflow: hidden; }
+.eq-fill { height: 100%; border-radius: 99px; transition: width 0.3s; }
+.eq-text { font-size: 11px; color: #888; white-space: nowrap; }
+.enroll-btn {
+  padding: 7px 16px; border-radius: 6px; font-size: 13px; font-weight: 600;
+  border: none; background: #2563eb; color: #fff; transition: background 0.15s;
+}
+.enroll-btn:hover:not(:disabled) { background: #1d4ed8; }
+.enroll-btn--cancel { background: #ef4444; }
+.enroll-btn--cancel:hover { background: #dc2626; }
+.enroll-btn--full { background: #9ca3af; cursor: not-allowed; }

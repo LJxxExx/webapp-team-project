@@ -1,0 +1,117 @@
+.timetable-wrap {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+.timetable-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111;
+}
+.btn-secondary {
+  font-size: 13px;
+  padding: 6px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  background: #fff;
+  color: #374151;
+  transition: background 0.15s;
+}
+.btn-secondary:hover:not(:disabled) { background: #f3f4f6; }
+.btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* 테이블 */
+.timetable-container {
+  overflow-x: auto;
+  transition: filter 0.3s;
+}
+.timetable-container.timetable-blurred {
+  filter: blur(6px);
+  user-select: none;
+  pointer-events: none;
+}
+.timetable {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 500px;
+}
+.th-time {
+  width: 60px;
+  font-size: 12px;
+  color: #9ca3af;
+  font-weight: 500;
+  padding: 8px;
+  text-align: center;
+  border-bottom: 1px solid #f3f4f6;
+}
+.th-day {
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+  padding: 8px;
+  text-align: center;
+  border-bottom: 1px solid #f3f4f6;
+}
+.td-time {
+  font-size: 12px;
+  color: #9ca3af;
+  padding: 0 8px;
+  text-align: center;
+  vertical-align: top;
+  height: 52px;
+  border-top: 1px solid #f3f4f6;
+}
+.td-cell {
+  padding: 3px;
+  vertical-align: top;
+  height: 52px;
+  border-top: 1px solid #f3f4f6;
+  border-left: 1px solid #f3f4f6;
+}
+.td-lunch {
+  text-align: center;
+  font-size: 13px;
+  color: #9ca3af;
+  height: 52px;
+  border-top: 1px solid #f3f4f6;
+  border-left: 1px solid #f3f4f6;
+}
+.course-block {
+  border-radius: 5px;
+  padding: 4px 7px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1f2937;
+  height: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 블러 오버레이 */
+.timetable-blur-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.blur-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111;
+  background: rgba(255,255,255,0.7);
+  padding: 8px 20px;
+  border-radius: 8px;
+}
