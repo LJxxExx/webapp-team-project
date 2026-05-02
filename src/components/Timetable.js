@@ -1,14 +1,14 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import './Timetable.css'
-import { createTimetableEntries, lectureCatalog, timetableData } from '../data'
+import { createTimetableEntries, lectureCatalog } from '../data'
 
 const DAYS = ['월', '화', '수', '목', '금']
 const HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
 const TIMETABLE_START = 9 * 60
 const TIMETABLE_END = 19 * 60
 
-const DEFAULT_PLAN_IDS = ['KMU-CSE1402-01', 'KMU-CSE2019-01', 'KMU-CSE2104-02']
-const RECOMMENDED_PLAN_IDS = ['KMU-CSE3102-01', 'KMU-CSE1402-01', 'KMU-CSE1302-01', 'KMU-CSE2104-02']
+const DEFAULT_PLAN_IDS = ['KMU-CSE3102-01', 'KMU-CSE1402-01', 'KMU-CSE2019-01']
+const RECOMMENDED_PLAN_IDS = ['KMU-CSE3102-01', 'KMU-CSE1402-01', 'KMU-CSE2019-01', 'KMU-CSE1302-01']
 const SECOND_PLAN_IDS = ['KMU-CSE3127-01', 'KMU-CSE2019-01', 'KMU-GEN3104-03']
 
 function formatRoom(room) {
@@ -104,6 +104,16 @@ export default function Timetable({ isLoggedIn }) {
     setMessage(text)
     setMessageType(type)
   }
+
+  useEffect(() => {
+    if (!toastMessage) return undefined
+
+    const timer = setTimeout(() => {
+      setToastMessage('')
+    }, 1800)
+
+    return () => clearTimeout(timer)
+  }, [toastMessage])
 
   const selectedLectureIds = useMemo(
     () => new Set(courses.map(course => course.lectureId)),
@@ -277,8 +287,6 @@ export default function Timetable({ isLoggedIn }) {
         </button>
       </div>
 
-      {toastMessage && <p className="timetable-toast">{toastMessage}</p>}
-
       <div className={'timetable-container' + (!isLoggedIn ? ' timetable-blurred' : '')}>
         <div className="timetable">
           <div className="timetable-head">
@@ -313,6 +321,11 @@ export default function Timetable({ isLoggedIn }) {
             </div>
           </div>
         </div>
+        {toastMessage && (
+          <div className="timetable-toast" role="status" aria-live="polite">
+            {toastMessage}
+          </div>
+        )}
       </div>
 
       {!isLoggedIn && (
@@ -327,7 +340,7 @@ export default function Timetable({ isLoggedIn }) {
             <div className="setting-top">
               <div>
                 <h3>시간표 생성</h3>
-                <p>계명대학교 강의 데이터 형식의 더미 강의를 분류별로 검색하고 시간표에 추가합니다.</p>
+                <p>{activePlan === 'plan1' ? '1안' : '2안'} 시간표 편집</p>
               </div>
               <button className="btn-text" onClick={() => setIsSettingOpen(false)}>닫기</button>
             </div>
@@ -458,7 +471,7 @@ export default function Timetable({ isLoggedIn }) {
             {message && <p className={`setting-message ${messageType}`}>{message}</p>}
 
             <div className="setting-footer">
-              <span>현재는 더미 데이터이며, 실제 학교 API가 생기면 같은 구조로 교체할 수 있습니다.</span>
+              <span>{activePlan === 'plan1' ? '1안' : '2안'}에 저장됩니다.</span>
               <button className="btn-primary" type="button" onClick={saveTimetable}>저장</button>
             </div>
           </div>
