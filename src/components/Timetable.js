@@ -2,21 +2,24 @@ import React, { useEffect, useMemo, useState } from 'react'
 import './Timetable.css'
 import { createTimetableEntries, lectureCatalog } from '../data'
 
+// 시간표 기본틀
 const DAYS = ['월', '화', '수', '목', '금']
 const HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
 const TIMETABLE_START = 9 * 60
 const TIMETABLE_END = 19 * 60
 
+// 기본, 추천, 2안 시간표 설정
 const DEFAULT_PLAN_IDS = ['KMU-CSE3102-01', 'KMU-CSE1402-01', 'KMU-CSE2019-01']
 const RECOMMENDED_PLAN_IDS = ['KMU-CSE3102-01', 'KMU-CSE1402-01', 'KMU-CSE2019-01', 'KMU-CSE1302-01']
 const SECOND_PLAN_IDS = ['KMU-CSE3127-01', 'KMU-CSE2019-01', 'KMU-GEN3104-03']
 
+// 강의실 약어 표시
 function formatRoom(room) {
   if (!room) return ''
 
   return room
     .replace(/^공학1호관\s*/, '공')
-    .replace(/^공학2호관\s*/, '공2-')
+    .replace(/^공학2호관\s*/, '공')
     .replace(/^의양관\s*/, '의')
     .replace(/^영암관\s*/, '영')
     .replace(/^백은관\s*/, '백')
