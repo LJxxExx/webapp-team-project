@@ -11,11 +11,60 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
+  gap: 12px;
+}
+.timetable-title-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 .section-title {
   font-size: 16px;
   font-weight: 700;
   color: #111;
+}
+.plan-tabs {
+  display: flex;
+  gap: 6px;
+}
+.plan-tabs button {
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  background: #fff;
+  color: #374151;
+  padding: 5px 11px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.plan-tabs button.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+}
+.plan-tabs button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.timetable-toast {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 20;
+  transform: translate(-50%, -50%);
+  min-width: 180px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: rgba(239, 246, 255, 0.96);
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.18);
+  color: #1d4ed8;
+  padding: 12px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+  animation: timetable-toast-pop 1.8s ease both;
 }
 .btn-secondary {
   font-size: 13px;
@@ -31,7 +80,11 @@
 
 /* 테이블 */
 .timetable-container {
-  overflow-x: auto;
+  position: relative;
+  max-height: clamp(420px, 62vh, 620px);
+  overflow: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
   transition: filter 0.3s;
 }
 .timetable-container.timetable-blurred {
@@ -41,11 +94,17 @@
 }
 .timetable {
   width: 100%;
-  border-collapse: collapse;
-  min-width: 500px;
+  min-width: 620px;
+}
+.timetable-head {
+  display: grid;
+  grid-template-columns: 70px repeat(5, minmax(0, 1fr));
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
 }
 .th-time {
-  width: 60px;
   font-size: 12px;
   color: #9ca3af;
   font-weight: 500;
@@ -61,41 +120,93 @@
   text-align: center;
   border-bottom: 1px solid #f3f4f6;
 }
+.timetable-body {
+  --row-count: 10;
+  --row-height: 64px;
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  height: calc(var(--row-height) * var(--row-count));
+}
+.time-axis {
+  display: grid;
+  grid-template-rows: repeat(var(--row-count), 1fr);
+}
 .td-time {
   font-size: 12px;
   color: #9ca3af;
-  padding: 0 8px;
+  padding: 7px 8px 0;
   text-align: center;
-  vertical-align: top;
-  height: 52px;
   border-top: 1px solid #f3f4f6;
 }
-.td-cell {
-  padding: 3px;
-  vertical-align: top;
-  height: 52px;
-  border-top: 1px solid #f3f4f6;
-  border-left: 1px solid #f3f4f6;
+.day-lanes {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  min-width: 0;
 }
-.td-lunch {
-  text-align: center;
-  font-size: 13px;
-  color: #9ca3af;
-  height: 52px;
-  border-top: 1px solid #f3f4f6;
+.day-lane {
+  position: relative;
+  min-width: 0;
   border-left: 1px solid #f3f4f6;
+  background-image: linear-gradient(to bottom, #f3f4f6 1px, transparent 1px);
+  background-size: 100% calc(100% / 10);
+}
+.day-lane:last-child {
+  border-right: 1px solid #f3f4f6;
 }
 .course-block {
+  position: absolute;
+  left: 5px;
+  right: 5px;
   border-radius: 5px;
-  padding: 4px 7px;
-  font-size: 12px;
+  padding: 8px 9px;
   font-weight: 500;
   color: #1f2937;
-  height: 100%;
-  min-height: 44px;
+  min-height: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  text-align: left;
+  overflow: hidden;
+}
+.course-block strong {
+  width: 100%;
+  font-size: 12px;
+  font-weight: 700;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.course-block span,
+.course-block em {
+  width: 100%;
+  margin-top: 3px;
+  font-size: 10px;
+  font-style: normal;
+  color: #4b5563;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes timetable-toast-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.96);
+  }
+  14% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  78% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -54%) scale(0.98);
+  }
 }
 
 /* 블러 오버레이 */
@@ -114,4 +225,296 @@
   background: rgba(255,255,255,0.7);
   padding: 8px 20px;
   border-radius: 8px;
+}
+
+/* 시간표 생성 */
+.timetable-setting-panel {
+  width: min(980px, calc(100vw - 48px));
+  max-height: calc(100vh - 86px);
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 18px;
+  box-shadow: 0 20px 48px rgba(17, 24, 39, 0.18);
+}
+.timetable-setting-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(248, 249, 250, 0.72);
+}
+.setting-top,
+.setting-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.setting-top h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111;
+}
+.setting-top p,
+.setting-footer span {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #888;
+}
+.btn-text {
+  border: none;
+  background: none;
+  color: #777;
+  font-size: 12px;
+  cursor: pointer;
+}
+.recommend-row {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+.recommend-row button,
+.clear-selected-btn {
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  background: #fff;
+  color: #374151;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.recommend-row button:hover,
+.clear-selected-btn:hover:not(:disabled) { background: #f3f4f6; }
+.clear-selected-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.lecture-manager {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  gap: 14px;
+  margin-top: 12px;
+}
+.lecture-search-section,
+.selected-lecture-section {
+  min-width: 0;
+  border: 1px solid #f3f4f6;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+}
+.lecture-search-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.lecture-search-header h4 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111;
+}
+.lecture-search-header span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: #888;
+}
+.lecture-filter-panel {
+  margin-bottom: 10px;
+  padding: 10px;
+  border: 1px solid #f3f4f6;
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+.lecture-type-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.lecture-type-tabs button {
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  background: #fff;
+  color: #374151;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.lecture-type-tabs button.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+}
+.lecture-filter-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.lecture-filter-grid label {
+  display: grid;
+  gap: 5px;
+  font-size: 11px;
+  color: #6b7280;
+}
+.lecture-filter-grid select {
+  width: 100%;
+  height: 34px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  padding: 0 8px;
+  font-size: 12px;
+  color: #374151;
+  background: #fff;
+}
+.lecture-search-input {
+  width: 100%;
+  height: 38px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  padding: 0 11px;
+  font-size: 13px;
+  color: #374151;
+  background: #fff;
+}
+.lecture-result-list,
+.selected-lecture-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+.lecture-result-item {
+  width: 100%;
+  border: 1px solid #f3f4f6;
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 11px;
+  text-align: left;
+  cursor: pointer;
+}
+.lecture-result-item:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+.lecture-result-item strong,
+.selected-lecture-info strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+.lecture-result-item span,
+.lecture-result-item small,
+.selected-lecture-info span,
+.selected-lecture-info small {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+}
+.selected-lecture-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid #f3f4f6;
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+.selected-lecture-card button {
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  background: #fff;
+  color: #374151;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.selected-lecture-card button:hover { background: #f3f4f6; }
+.clear-selected-btn {
+  flex-shrink: 0;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+.clear-selected-btn:hover:not(:disabled) { background: #fef2f2; }
+.empty-lecture {
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  color: #888;
+  font-size: 13px;
+}
+.btn-primary {
+  height: 34px;
+  border: none;
+  border-radius: 7px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 12px;
+  cursor: pointer;
+}
+.btn-primary:hover { background: #1d4ed8; }
+.setting-message {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #2563eb;
+}
+.setting-message.error {
+  color: #dc2626;
+  font-weight: 700;
+}
+.setting-message.success {
+  color: #2563eb;
+}
+.course-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+.setting-footer {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
+}
+
+@media (max-width: 900px) {
+  .lecture-manager { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 560px) {
+  .timetable-title-area {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .timetable-setting-backdrop { padding: 12px; }
+  .timetable-setting-panel {
+    width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    padding: 14px;
+  }
+  .setting-top,
+  .setting-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .lecture-filter-grid { grid-template-columns: 1fr; }
+  .timetable-container {
+    max-height: 58vh;
+  }
 }
