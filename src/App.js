@@ -7,6 +7,7 @@ import GradeCalculator from './components/GradeCalculator'
 import AssignmentPage from './components/AssignmentPage'
 import EnrollmentPage from './components/EnrollmentPage'
 import MyPage from './components/MyPage'
+import { createTimetableEntries, lectureCatalog } from './data'
 
 const TEST_USER = {
   name: 'UsrName',
@@ -17,6 +18,9 @@ const TEST_USER = {
 }
 
 const PAGES = ['main', 'grade', 'assignment', 'enroll', 'mypage']
+
+const RECOMMENDED_PLAN_IDS = ['KMU-CSE3102-01', 'KMU-CSE1402-01', 'KMU-CSE2019-01', 'KMU-CSE1302-01']
+const SECOND_PLAN_IDS      = ['KMU-CSE3127-01', 'KMU-CSE2019-01', 'KMU-GEN3104-03']
 
 function AcademicSection() {
   return (
@@ -35,6 +39,22 @@ export default function App() {
   const [user, setUser]         = useState(null)
   const [animating, setAnimating] = useState(false)
 
+  // ── 시간표 저장 상태를 App 레벨로 끌어올려 GradeCalculator와 공유 ──
+  const [savedPlans, setSavedPlans] = useState({
+    plan1: createTimetableEntries(lectureCatalog.filter(l => RECOMMENDED_PLAN_IDS.includes(l.id))),
+    plan2: createTimetableEntries(lectureCatalog.filter(l => SECOND_PLAN_IDS.includes(l.id))),
+  })
+  const [activePlan, setActivePlan] = useState('plan1')
+
+  // 현재 활성 시간표에서 고유 강의 목록 추출
+  const savedLectures = (() => {
+    const entries = savedPlans[activePlan]
+    const seen = new Set()
+    return entries
+      .map(entry => lectureCatalog.find(l => l.id === entry.lectureId))
+      .filter(l => l && !seen.has(l.id) && seen.add(l.id))
+  })()
+
   function navigateTo(next) {
     if (next === page || animating) return
     const dir = PAGES.indexOf(next) > PAGES.indexOf(page) ? 1 : -1
@@ -50,8 +70,8 @@ export default function App() {
 
   function renderContent(p) {
     switch (p) {
-      case 'main':       return <><Timetable isLoggedIn={isLoggedIn} /><AcademicSection /></>
-      case 'grade':      return <GradeCalculator isLoggedIn={isLoggedIn} />
+      case 'main':       return <><Timetable isLoggedIn={isLoggedIn} savedPlans={savedPlans} setSavedPlans={setSavedPlans} activePlan={activePlan} setActivePlan={setActivePlan} /><AcademicSection /></>
+      case 'grade':      return <GradeCalculator isLoggedIn={isLoggedIn} savedLectures={savedLectures} />
       case 'assignment': return <AssignmentPage isLoggedIn={isLoggedIn} />
       case 'enroll':     return <EnrollmentPage isLoggedIn={isLoggedIn} />
       case 'mypage':     return <MyPage isLoggedIn={isLoggedIn} user={user} onLogin={login} onLogout={logout} />
