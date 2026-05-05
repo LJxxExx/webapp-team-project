@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import './GradeCalculator.css'
 import { gradeCoursesData } from '../data'
 
@@ -46,18 +46,64 @@ function calcRisk(course) {
   return { attRate, hwRate, risk, level, grade: gradeInfo.grade, gpa: gradeInfo.gpa, approxScore }
 }
 
-export default function GradeCalculator({ isLoggedIn }) {
-  const [stats, setStats] = useState(
-    Object.fromEntries(gradeCoursesData.map(c => [c.id, { absent: 0, hwMiss: 0, exam: null }]))
-  )
-  const [selectedId, setSelectedId] = useState(gradeCoursesData[0].id)
+// lectureCatalog 강의를 gradeCoursesData 포맷으로 변환
+function lectureToGradeCourse(lecture, index) {
+  return {
+    id: `timetable-${lecture.id}`,
+    name: lecture.name,
+    credit: lecture.credit ?? 3,
+    professor: lecture.professor,
+    totalClass: 15,
+    hwTotal: 4,
+  }
+}
 
-  const courses = gradeCoursesData.map(c => ({ ...c, ...stats[c.id] }))
-  const selected = courses.find(c => c.id === selectedId)
+export default function GradeCalculator({ isLoggedIn, savedLectures }) {
+  // savedLectures가 있으면 시간표 기반 강의 목록 사용, 없으면 기본 데이터 사용
+  const baseCourses = useMemo(() => {
+    if (savedLectures && savedLectures.length > 0) {
+      return savedLectures.map(lectureToGradeCourse)
+    }
+    return gradeCoursesData
+  }, [savedLectures])
+
+  const [stats, setStats] = useState({})
+  const [selectedId, setSelectedId] = useState(baseCourses[0]?.id)
+
+  // baseCourses가 바뀌면 selectedId도 첫 번째로 초기화
+  const prevBaseCourses = React.useRef(baseCourses)
+  if (prevBaseCourses.current !== baseCourses) {
+    prevBaseCourses.current = baseCourses
+  }
+
+  const effectiveSelectedId = baseCourses.find(c => c.id === selectedId)
+    ? selectedId
+    : baseCourses[0]?.id
+
+  const courses = baseCourses.map(c => ({
+    ...c,
+    ...(stats[c.id] ?? { absent: 0, hwMiss: 0, exam: null }),
+  }))
+
+  const selected = courses.find(c => c.id === effectiveSelectedId) ?? courses[0]
   const { attRate, hwRate, risk, level, grade, gpa, approxScore } = calcRisk(selected)
 
   function updateStat(key, val) {
-    setStats(prev => ({ ...prev, [selectedId]: { ...prev[selectedId], [key]: val } }))
+    setStats(prev => ({ ...prev, [effectiveSelectedId]: { ...(prev[effectiveSelectedId] ?? { absent: 0, hwMiss: 0, exam: null }), [key]: val } }))
+  }
+
+  if (!selected) {
+    return (
+      <div className={'grade-calc' + (!isLoggedIn ? ' gc-blurred' : '')}>
+        {!isLoggedIn && (
+          <div className="gc-blur-overlay"><span className="blur-label">'로그인이 필요합니다'</span></div>
+        )}
+        <div style={{ padding: '2rem', textAlign: 'center', color: '#888' }}>
+          <p>시간표에 저장된 강의가 없습니다.</p>
+          <p>메인 페이지에서 시간표를 저장하면 강의 목록이 표시됩니다.</p>
+        </div>
+      </div>
+    )
   }
 
   const dangerCount = courses.filter(c => calcRisk(c).level === 'danger').length
@@ -97,7 +143,7 @@ export default function GradeCalculator({ isLoggedIn }) {
             return (
               <div
                 key={c.id}
-                className={'gc-course-card' + (c.id === selectedId ? ' selected' : '')}
+                className={'gc-course-card' + (c.id === effectiveSelectedId ? ' selected' : '')}
                 onClick={() => setSelectedId(c.id)}
               >
                 <div className="gcc-top">
@@ -170,9 +216,9 @@ export default function GradeCalculator({ isLoggedIn }) {
           <p className="gcd-section-label">실적 입력</p>
           <div className="gcd-inputs">
             {[
-              { label: `결석 횟수 (총 ${selected.totalClass}회)`, key: 'absent',  max: selected.totalClass, val: stats[selectedId].absent },
-              { label: `과제 미제출 (총 ${selected.hwTotal}개)`,  key: 'hwMiss',  max: selected.hwTotal,    val: stats[selectedId].hwMiss },
-              { label: '시험 점수 (0~100)',                         key: 'exam',    max: 100,                 val: stats[selectedId].exam ?? '' },
+              { label: `결석 횟수 (총 ${selected.totalClass}회)`, key: 'absent',  max: selected.totalClass, val: (stats[effectiveSelectedId] ?? { absent: 0 }).absent },
+              { label: `과제 미제출 (총 ${selected.hwTotal}개)`,  key: 'hwMiss',  max: selected.hwTotal,    val: (stats[effectiveSelectedId] ?? { hwMiss: 0 }).hwMiss },
+              { label: '시험 점수 (0~100)',                         key: 'exam',    max: 100,                 val: (stats[effectiveSelectedId] ?? { exam: null }).exam ?? '' },
             ].map(({ label, key, max, val }) => (
               <div key={key} className="gcd-input-row">
                 <label className="gcd-input-label">{label}</label>

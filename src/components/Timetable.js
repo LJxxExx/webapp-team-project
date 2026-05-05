@@ -85,13 +85,8 @@ function getCourseStyle(course) {
   }
 }
 
-export default function Timetable({ isLoggedIn }) {
-  const [savedPlans, setSavedPlans] = useState({
-    plan1: createTimetableEntries(lectureCatalog.filter(lecture => RECOMMENDED_PLAN_IDS.includes(lecture.id))),
-    plan2: createTimetableEntries(lectureCatalog.filter(lecture => SECOND_PLAN_IDS.includes(lecture.id))),
-  })
-  const [activePlan, setActivePlan] = useState('plan1')
-  const [courses, setCourses] = useState(savedPlans.plan1)
+export default function Timetable({ isLoggedIn, savedPlans, setSavedPlans, activePlan, setActivePlan }) {
+  const [courses, setCourses] = useState(savedPlans[activePlan])
   const [isSettingOpen, setIsSettingOpen] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [lectureType, setLectureType] = useState('전공')
