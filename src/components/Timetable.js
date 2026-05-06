@@ -200,6 +200,7 @@ export default function Timetable({ isLoggedIn, savedPlans, setSavedPlans, activ
     )
   }
 
+  // 시간표 상태 알람
   function addLecture(lecture) {
     if (selectedLectureIds.has(lecture.id)) {
       showMessage('이미 시간표에 추가된 강의입니다.', 'error')
