@@ -1,6 +1,6 @@
 import React from 'react'
 import './Sidebar.css'
-import { assignmentsData } from '../data'
+import { assignmentsData } from '../../data'
 
 export default function Sidebar({ isLoggedIn, user, onLogin, onLogout }) {
   return (
