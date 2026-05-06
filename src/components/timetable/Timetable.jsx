@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import './Timetable.css'
-import { createTimetableEntries, lectureCatalog } from '../data'
+import { createTimetableEntries, lectureCatalog } from '../../data'
 
 // 시간표 기본틀
 const DAYS = ['월', '화', '수', '목', '금']

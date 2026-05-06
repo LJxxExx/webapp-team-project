@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import './AssignmentPage.css'
-import { assignmentsData } from '../data'
+import { assignmentsData } from '../../data'
 
 export default function AssignmentPage({ isLoggedIn }) {
   const [assignments, setAssignments] = useState(assignmentsData)

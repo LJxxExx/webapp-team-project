@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import './GradeCalculator.css'
-import { gradeCoursesData } from '../data'
+import { gradeCoursesData } from '../../data'
 
 const GRADE_TABLE = [
   { grade: 'A+', gpa: 4.5, minScore: 95 },
