@@ -31,7 +31,7 @@ services:
       - db_data:/var/lib/mysql
     healthcheck:
       # MySQL 서비스가 실제로 응답 가능한지 체크하는 명령입니다.
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p" + "rootdpassword"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-prootdpassword"]
       timeout: 5s
       retries: 10
       interval: 5s
