@@ -9,6 +9,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     student_id = Column(String(20), unique=True, index=True) # 학번
     name = Column(String(50))
+    hashed_password = Column(String(255))
 
     # 학생이 가진 수강내역과 과제들 (1:N 관계)
     enrollments = relationship("Enrollment", back_populates="user")

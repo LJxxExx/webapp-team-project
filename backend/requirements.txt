@@ -5,3 +5,5 @@ sqlalchemy>=2.0.0
 pymysql>=1.1.0
 cryptography>=41.0.0
 uvicorn>=0.30.0
+PyJWT
+pwdlib[argon2]
