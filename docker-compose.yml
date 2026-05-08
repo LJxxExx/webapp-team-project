@@ -1,11 +1,40 @@
 services:
   web:
-    build: .
+    build: ./frontend
     ports:
       - "3000:3000"
     volumes:
-      - .:/app
+      - ./frontend:/app
       - /app/node_modules
     environment:
       - CHOKIDAR_USEPOLLING=true
       - WDS_SOCKET_PORT=0
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy  # DB가 '건강함' 상태가 될 때까지 백엔드 실행을 대기합니다.
+
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: rootdpassword
+      MYSQL_DATABASE: univ_db
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      # MySQL 서비스가 실제로 응답 가능한지 체크하는 명령입니다.
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-prootdpassword"]
+      timeout: 5s
+      retries: 10
+      interval: 5s
+
+volumes:
+  db_data:
