@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import axios from 'axios'
 import './Timetable.css'
-import { createTimetableEntries, lectureCatalog } from '../../data'
+
+
+const API_BASE_URL = 'http://localhost:8000'
 
 // 시간표 기본틀
 const DAYS = ['월', '화', '수', '목', '금']
@@ -8,10 +11,26 @@ const HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
 const TIMETABLE_START = 9 * 60
 const TIMETABLE_END = 19 * 60
 
-// 기본, 추천, 2안 시간표 설정
-const DEFAULT_PLAN_IDS = ['KMU-CSE3102-01', 'KMU-CSE1402-01', 'KMU-CSE2019-01']
-const RECOMMENDED_PLAN_IDS = ['KMU-CSE3102-01', 'KMU-CSE1402-01', 'KMU-CSE2019-01', 'KMU-CSE1302-01']
-const SECOND_PLAN_IDS = ['KMU-CSE3127-01', 'KMU-CSE2019-01', 'KMU-GEN3104-03']
+function localCreateTimetableEntries(lectures) {
+  return lectures.flatMap(lecture =>
+    lecture.meetings.map((meeting, index) => ({
+      id: `${lecture.id}-${index}`,
+      lectureId: lecture.id,
+      name: lecture.name,
+      professor: lecture.professor,
+      room: lecture.room,
+      lectureCode: lecture.lectureCode,
+      sectionCode: lecture.sectionCode,
+      credit: lecture.credit,
+      color: lecture.color,
+      day: meeting.day,
+      startHour: meeting.startHour,
+      startMinute: meeting.startMinute || 0,
+      endHour: meeting.endHour,
+      endMinute: meeting.endMinute || 0,
+    }))
+  )
+}
 
 // 강의실 약어 표시
 function formatRoom(room) {
@@ -85,11 +104,25 @@ function getCourseStyle(course) {
   }
 }
 
-export default function Timetable({ isLoggedIn, savedPlans, setSavedPlans, activePlan, setActivePlan }) {
-  const [courses, setCourses] = useState(savedPlans[activePlan])
+export default function Timetable({ isLoggedIn, user, savedPlans, setSavedPlans, activePlan, setActivePlan }) {
+  const [courses, setCourses] = useState(savedPlans[activePlan] || [])
   const [isSettingOpen, setIsSettingOpen] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [lectureType, setLectureType] = useState('전공')
+  const [lectureCatalog, setLectureCatalog] = useState([])
+
+  // 백엔드에서 강의 목록 가져오기
+  useEffect(() => {
+    axios.get(`${API_BASE_URL}/api/lectures`)
+      .then(res => setLectureCatalog(res.data))
+      .catch(err => console.error('강의 목록 로딩 실패:', err))
+  }, [])
+
+  // 부모(App.js)에서 백엔드 데이터를 가져오면 courses 상태를 동기화
+  useEffect(() => {
+    setCourses(savedPlans[activePlan] || [])
+  }, [savedPlans, activePlan])
+
   const [selectedCollege, setSelectedCollege] = useState('공과대학')
   const [selectedDepartment, setSelectedDepartment] = useState('컴퓨터공학과')
   const [selectedLiberalType, setSelectedLiberalType] = useState('공통교양')
@@ -120,12 +153,12 @@ export default function Timetable({ isLoggedIn, savedPlans, setSavedPlans, activ
 
   const selectedLectures = useMemo(
     () => lectureCatalog.filter(lecture => selectedLectureIds.has(lecture.id)),
-    [selectedLectureIds]
+    [lectureCatalog, selectedLectureIds]
   )
 
   const colleges = useMemo(
     () => uniqueValues(lectureCatalog.filter(lecture => lecture.category === '전공').map(lecture => lecture.college)),
-    []
+    [lectureCatalog]
   )
 
   const departments = useMemo(
@@ -134,12 +167,12 @@ export default function Timetable({ isLoggedIn, savedPlans, setSavedPlans, activ
         .filter(lecture => lecture.category === '전공' && lecture.college === selectedCollege)
         .map(lecture => lecture.department)
     ),
-    [selectedCollege]
+    [lectureCatalog, selectedCollege]
   )
 
   const liberalTypes = useMemo(
     () => uniqueValues(lectureCatalog.filter(lecture => lecture.category === '교양').map(lecture => lecture.liberalType)),
-    []
+    [lectureCatalog]
   )
 
   const liberalAreas = useMemo(
@@ -148,7 +181,7 @@ export default function Timetable({ isLoggedIn, savedPlans, setSavedPlans, activ
         .filter(lecture => lecture.category === '교양' && lecture.liberalType === selectedLiberalType)
         .map(lecture => lecture.liberalArea)
     ),
-    [selectedLiberalType]
+    [lectureCatalog, selectedLiberalType]
   )
 
   const filteredLectures = useMemo(() => {
@@ -166,7 +199,7 @@ export default function Timetable({ isLoggedIn, savedPlans, setSavedPlans, activ
 
       return typeMatched && majorMatched && liberalMatched && keywordMatched
     })
-  }, [lectureType, searchText, selectedCollege, selectedDepartment, selectedLiberalArea, selectedLiberalType])
+  }, [lectureCatalog, lectureType, searchText, selectedCollege, selectedDepartment, selectedLiberalArea, selectedLiberalType])
 
   function changeLectureType(nextType) {
     setLectureType(nextType)
@@ -207,23 +240,48 @@ export default function Timetable({ isLoggedIn, savedPlans, setSavedPlans, activ
       return
     }
 
-    const newEntries = createTimetableEntries([lecture])
+    const newEntries = localCreateTimetableEntries([lecture])
     if (hasConflict(newEntries)) {
       showMessage('같은 요일과 시간에 겹치는 강의가 있습니다.', 'error')
       return
     }
 
-    setCourses(prev => [...prev, ...newEntries])
-    showMessage(`${lecture.name} 강의를 추가했습니다.`)
+    // 백엔드 수강신청 API 호출 (TEST_USER 학번 사용)
+    const student_id = user ? user.id : '20220001'
+    axios.post(`${API_BASE_URL}/api/users/${student_id}/enrollments`, { lecture_id: lecture.id })
+      .then(() => {
+        setCourses(prev => [...prev, ...newEntries])
+        showMessage(`${lecture.name} 강의를 추가했습니다.`)
+        // App.js 상태도 동시 업데이트 (필요시)
+        setSavedPlans(prev => ({ ...prev, [activePlan]: [...courses, ...newEntries] }))
+      })
+      .catch(err => {
+        console.error('수강신청 실패:', err)
+        showMessage('수강신청 중 오류가 발생했습니다.', 'error')
+      })
   }
 
   function deleteLecture(lectureId) {
-    setCourses(prev => prev.filter(course => course.lectureId !== lectureId))
-    showMessage('강의를 시간표에서 삭제했습니다.')
+    const student_id = user ? user.id : '20220001'
+    axios.delete(`${API_BASE_URL}/api/users/${student_id}/enrollments/${lectureId}`)
+      .then(() => {
+        setCourses(prev => prev.filter(course => course.lectureId !== lectureId))
+        showMessage('강의를 시간표에서 삭제했습니다.')
+        setSavedPlans(prev => ({
+          ...prev,
+          [activePlan]: (savedPlans[activePlan] || []).filter(c => c.lectureId !== lectureId)
+        }))
+      })
+      .catch(err => {
+        console.error('수강취소 실패:', err)
+        showMessage('수강취소 중 오류가 발생했습니다.', 'error')
+      })
   }
 
   function clearLectures() {
-    setCourses([])
+    // 모든 강의 삭제는 하나씩 API 호출하거나 백엔드에 전체 삭제 API 필요
+    // 여기서는 UI 편의상 루프를 돌림
+    selectedLectures.forEach(l => deleteLecture(l.id))
     showMessage('추가한 강의를 모두 삭제했습니다.')
   }
 
@@ -231,23 +289,22 @@ export default function Timetable({ isLoggedIn, savedPlans, setSavedPlans, activ
     const lectures = lectureIds
       .map(id => lectureCatalog.find(lecture => lecture.id === id))
       .filter(Boolean)
-    setCourses(createTimetableEntries(lectures))
+    
+    // 기존 강의 비우고 새 강의 추가 (연습용이므로 로컬에서만 동작하거나 API 대량 호출 필요)
+    setCourses(localCreateTimetableEntries(lectures))
     showMessage(`${label}을 불러왔습니다.`)
   }
 
   function openSavedPlan(planKey) {
     const planLabel = planKey === 'plan1' ? '1안' : '2안'
     setActivePlan(planKey)
-    setCourses(savedPlans[planKey])
+    setCourses(savedPlans[planKey] || [])
     setToastMessage(`${planLabel}을 불러왔습니다.`)
     showMessage(`${planLabel}을 불러왔습니다.`)
   }
 
   function saveTimetable() {
-    setSavedPlans(prev => ({
-      ...prev,
-      [activePlan]: courses,
-    }))
+    // 이미 addLecture/deleteLecture에서 API를 호출하므로 여기서는 팝업만 닫음
     setIsSettingOpen(false)
     setToastMessage(`${activePlan === 'plan1' ? '1안' : '2안'}이 저장되었습니다.`)
     showMessage('')
@@ -347,7 +404,7 @@ export default function Timetable({ isLoggedIn, savedPlans, setSavedPlans, activ
             <div className="recommend-row">
               <button type="button" onClick={() => openSavedPlan('plan1')}>1안</button>
               <button type="button" onClick={() => openSavedPlan('plan2')}>2안</button>
-              <button type="button" onClick={() => loadPlan(DEFAULT_PLAN_IDS, '기본 시간표')}>초기화</button>
+              {/* <button type="button" onClick={() => loadPlan(DEFAULT_PLAN_IDS, '기본 시간표')}>초기화</button> */}
             </div>
 
             <div className="lecture-manager">

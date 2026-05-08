@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import axios from 'axios'
 import './App.css'
 import Navbar from './components/bar/Navbar'
 import Sidebar from './components/bar/Sidebar'
@@ -7,20 +8,19 @@ import GradeCalculator from './components/grade/GradeCalculator'
 import AssignmentPage from './components/assignment/AssignmentPage'
 import EnrollmentPage from './components/enrollment/EnrollmentPage'
 import MyPage from './components/mypage/MyPage'
-import { createTimetableEntries, lectureCatalog, assignmentsData } from './data'
+
+
+const API_BASE_URL = 'http://localhost:8000'
 
 const TEST_USER = {
   name: 'UsrName',
   email: 'user@university.ac.kr',
-  id: '20210001',
+  id: '20220001',
   dept: '컴퓨터공학과',
   grade: 3,
 }
 
 const PAGES = ['main', 'grade', 'assignment', 'enroll', 'mypage']
-
-const RECOMMENDED_PLAN_IDS = ['KMU-CSE3102-01', 'KMU-CSE1402-01', 'KMU-CSE2019-01', 'KMU-CSE1302-01']
-const SECOND_PLAN_IDS      = ['KMU-CSE3127-01', 'KMU-CSE2019-01', 'KMU-GEN3104-03']
 
 const ASSIGNMENT_STORAGE_KEY = 'assignment-dashboard-data'
 
@@ -51,19 +51,22 @@ function normalizeAssignment(item, index) {
   let dueDate = item.dueDate
   let dueTime = item.dueTime || '23:59'
 
-  // 기존 더미 데이터가 due: "오늘 23:59 까지", due: "D-3" 같은 형태일 경우 변환
-  if (!dueDate) {
-    if (item.due && item.due.includes('오늘')) {
+  if (item.due && !dueDate) {
+    if (item.due.includes('오늘')) {
       dueDate = formatDateKey(today)
-    } else if (item.due && item.due.startsWith('D-')) {
+    } else if (item.due.startsWith('D-')) {
       const days = Number(item.due.replace('D-', '').trim())
       const date = new Date(today)
       date.setDate(today.getDate() + days)
       dueDate = formatDateKey(date)
+    } else if (item.due.match(/^\d{4}-\d{2}-\d{2}/)) {
+      dueDate = item.due
     } else {
       dueDate = formatDateKey(fallbackDate)
     }
   }
+
+  if (!dueDate) dueDate = formatDateKey(fallbackDate)
 
   if (item.due && item.due.includes(':')) {
     const match = item.due.match(/(\d{1,2}:\d{2})/)
@@ -113,40 +116,53 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [user, setUser]         = useState(null)
   const [animating, setAnimating] = useState(false)
-
-  // ── 과제 상태를 App 레벨로 끌어올려 Sidebar와 AssignmentPage가 공유 ──
-  const [assignments, setAssignments] = useState(() => {
-    const saved = localStorage.getItem(ASSIGNMENT_STORAGE_KEY)
-
-    if (saved) {
-      try {
-        return normalizeAssignments(JSON.parse(saved))
-      } catch (error) {
-        console.error('과제 데이터 불러오기 실패:', error)
-      }
-    }
-
-    return normalizeAssignments(assignmentsData)
+  
+  // 전역 데이터 상태
+  const [lectureCatalog, setLectureCatalog] = useState([])
+  const [assignments, setAssignments] = useState([])
+  const [savedPlans, setSavedPlans] = useState({
+    plan1: [],
+    plan2: [],
   })
+  const [activePlan, setActivePlan] = useState('plan1')
+
+  // 초기 로딩 및 로그인 시 데이터 페칭
+  useEffect(() => {
+    // 1. 전체 강의 목록 로드
+    axios.get(`${API_BASE_URL}/api/lectures`)
+      .then(res => setLectureCatalog(res.data))
+      .catch(err => console.error('강의 목록 로딩 실패:', err))
+
+    if (isLoggedIn && user) {
+      fetchUserData(user.id)
+    }
+  }, [isLoggedIn, user])
+
+  function fetchUserData(studentId) {
+    // 2. 시간표 조회
+    axios.get(`${API_BASE_URL}/api/users/${studentId}/timetable`)
+      .then(res => {
+        setSavedPlans(prev => ({
+          ...prev,
+          plan1: res.data
+        }))
+      })
+      .catch(err => console.error('시간표 로딩 실패:', err))
+
+    // 3. 과제 조회
+    axios.get(`${API_BASE_URL}/api/users/${studentId}/assignments`)
+      .then(res => {
+        setAssignments(normalizeAssignments(res.data))
+      })
+      .catch(err => console.error('과제 로딩 실패:', err))
+  }
 
   // Sidebar에서 과제를 클릭했을 때 AssignmentPage의 해당 날짜 상세 화면으로 이동시키기 위한 상태
   const [openAssignmentDate, setOpenAssignmentDate] = useState(null)
 
-  // 과제 데이터가 바뀔 때마다 localStorage에 저장
-  useEffect(() => {
-    localStorage.setItem(ASSIGNMENT_STORAGE_KEY, JSON.stringify(assignments))
-  }, [assignments])
-
-  // ── 시간표 저장 상태를 App 레벨로 끌어올려 GradeCalculator와 공유 ──
-  const [savedPlans, setSavedPlans] = useState({
-    plan1: createTimetableEntries(lectureCatalog.filter(l => RECOMMENDED_PLAN_IDS.includes(l.id))),
-    plan2: createTimetableEntries(lectureCatalog.filter(l => SECOND_PLAN_IDS.includes(l.id))),
-  })
-  const [activePlan, setActivePlan] = useState('plan1')
-
-  // 현재 활성 시간표에서 고유 강의 목록 추출
+  // 현재 활성 시간표에서 고유 강의 목록 추출 (학점 계산기용)
   const savedLectures = (() => {
-    const entries = savedPlans[activePlan]
+    const entries = savedPlans[activePlan] || []
     const seen = new Set()
     return entries
       .map(entry => lectureCatalog.find(l => l.id === entry.lectureId))
@@ -168,37 +184,70 @@ export default function App() {
 
   // 과제 추가
   function addAssignment(newAssignment) {
-    setAssignments(prev => [...prev, newAssignment])
+    if (!isLoggedIn || !user) return
+    const postData = {
+      title: newAssignment.title,
+      due: newAssignment.dueDate,
+      urgency: newAssignment.priority === '긴급' ? 'today' : (newAssignment.priority === '높음' ? 'soon' : 'normal'),
+      done: false
+    }
+    axios.post(`${API_BASE_URL}/api/users/${user.id}/assignments`, postData)
+      .then(res => {
+        setAssignments(prev => [...prev, normalizeAssignment(res.data, prev.length)])
+      })
+      .catch(err => console.error('과제 추가 실패:', err))
   }
 
   // 과제 수정
   function updateAssignment(updatedAssignment) {
-    setAssignments(prev =>
-      prev.map(assignment =>
-        assignment.id === updatedAssignment.id ? updatedAssignment : assignment
-      )
-    )
+    if (!isLoggedIn) return
+    const putData = {
+      title: updatedAssignment.title,
+      due: updatedAssignment.dueDate,
+      urgency: updatedAssignment.priority === '긴급' ? 'today' : (updatedAssignment.priority === '높음' ? 'soon' : 'normal'),
+      done: updatedAssignment.isCompleted
+    }
+    axios.put(`${API_BASE_URL}/api/assignments/${updatedAssignment.id}`, putData)
+      .then(res => {
+        setAssignments(prev =>
+          prev.map(assignment =>
+            assignment.id === updatedAssignment.id ? normalizeAssignment(res.data, 0) : assignment
+          )
+        )
+      })
+      .catch(err => console.error('과제 수정 실패:', err))
   }
 
   // 과제 삭제
   function deleteAssignment(assignmentId) {
-    setAssignments(prev =>
-      prev.filter(assignment => assignment.id !== assignmentId)
-    )
+    if (!isLoggedIn) return
+    axios.delete(`${API_BASE_URL}/api/assignments/${assignmentId}`)
+      .then(() => {
+        setAssignments(prev =>
+          prev.filter(assignment => assignment.id !== assignmentId)
+        )
+      })
+      .catch(err => console.error('과제 삭제 실패:', err))
   }
 
   // 과제 제출 완료 / 완료 취소
   function toggleAssignmentComplete(assignmentId) {
-    setAssignments(prev =>
-      prev.map(assignment =>
-        assignment.id === assignmentId
-          ? { ...assignment, isCompleted: !assignment.isCompleted }
-          : assignment
-      )
-    )
+    if (!isLoggedIn) return
+    const target = assignments.find(a => a.id === assignmentId)
+    if (!target) return
+    axios.put(`${API_BASE_URL}/api/assignments/${assignmentId}`, { done: !target.isCompleted })
+      .then(res => {
+        setAssignments(prev =>
+          prev.map(assignment =>
+            assignment.id === assignmentId
+              ? { ...assignment, isCompleted: res.data.done }
+              : assignment
+          )
+        )
+      })
+      .catch(err => console.error('과제 상태 변경 실패:', err))
   }
 
-  // Sidebar의 과제 요약에서 과제를 클릭하면 과제 페이지의 해당 날짜 상세 화면으로 이동
   function openAssignmentFromSidebar(assignment) {
     setOpenAssignmentDate(assignment.dueDate)
     navigateTo('assignment')
@@ -215,6 +264,7 @@ export default function App() {
           <>
             <Timetable
               isLoggedIn={isLoggedIn}
+              user={user}
               savedPlans={savedPlans}
               setSavedPlans={setSavedPlans}
               activePlan={activePlan}
@@ -223,15 +273,8 @@ export default function App() {
             <AcademicSection />
           </>
         )
-
       case 'grade':
-        return (
-          <GradeCalculator
-            isLoggedIn={isLoggedIn}
-            savedLectures={savedLectures}
-          />
-        )
-
+        return <GradeCalculator isLoggedIn={isLoggedIn} savedLectures={savedLectures} />
       case 'assignment':
         return (
           <AssignmentPage
@@ -245,20 +288,10 @@ export default function App() {
             onToggleComplete={toggleAssignmentComplete}
           />
         )
-
       case 'enroll':
-        return <EnrollmentPage isLoggedIn={isLoggedIn} />
-
+        return <EnrollmentPage isLoggedIn={isLoggedIn} user={user} onRefreshData={() => fetchUserData(user.id)} />
       case 'mypage':
-        return (
-          <MyPage
-            isLoggedIn={isLoggedIn}
-            user={user}
-            onLogin={login}
-            onLogout={logout}
-          />
-        )
-
+        return <MyPage isLoggedIn={isLoggedIn} user={user} onLogin={login} onLogout={logout} />
       default:
         return null
     }
@@ -266,14 +299,8 @@ export default function App() {
 
   return (
     <div className="app">
-
-      {/* ① 네비바 — 항상 고정 */}
       <Navbar activePage={page} onNavigate={navigateTo} />
-
-      {/* ② 사이드바 + 콘텐츠 뷰포트 — 항상 유지 */}
       <div className="layout">
-
-        {/* 사이드바 — 어느 탭이든 고정 */}
         <Sidebar
           isLoggedIn={isLoggedIn}
           user={user}
@@ -283,25 +310,18 @@ export default function App() {
           onToggleAssignmentComplete={toggleAssignmentComplete}
           onOpenAssignment={openAssignmentFromSidebar}
         />
-
-        {/* ③ 콘텐츠 뷰포트 — 이 안에서만 교체 */}
         <div className="content-viewport">
-
-          {/* 나가는 콘텐츠 */}
           {prevPage && (
             <div className={'content-panel panel-exit ' + (direction > 0 ? 'exit-left' : 'exit-right')}>
               {renderContent(prevPage)}
             </div>
           )}
-
-          {/* 들어오는 콘텐츠 */}
           <div className={'content-panel ' + (prevPage
             ? (direction > 0 ? 'panel-enter enter-right' : 'panel-enter enter-left')
             : 'panel-active'
           )}>
             {renderContent(page)}
           </div>
-
         </div>
       </div>
     </div>
