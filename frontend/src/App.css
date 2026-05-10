@@ -1,17 +1,25 @@
+/*
+5월 10일 수정
+브라우저 창에 모든 컴포넌트가 들어오도록 고정하는 것이 아닌,
+세로 확장은 가능하도록 수정하여 학술자료 컴포넌트로 인해 시간표 컴포넌트가
+과도하게 작아지는 현상 수정
+*/
+
 /* ===== 전역 ===== */
 .app {
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   background: #f8f9fa;
-  overflow: hidden; /* 스크롤은 콘텐츠 뷰포트 안에서만 */
+  /* overflow: hidden; 스크롤은 콘텐츠 뷰포트 안에서만 */
+  overflow-x: hidden; /* 가로 스크롤만 방지 */
 }
 
 /* ===== 네비바 아래 레이아웃 ===== */
 .layout {
   flex: 1;
   display: flex;
-  overflow: hidden;
+  /* overflow: hidden; */
   max-width: 1100px;
   width: 100%;
   margin: 0 auto;
@@ -25,9 +33,10 @@
 .content-viewport {
   flex: 1;
   min-width: 0;
-  position: relative;    /* panel-exit 의 absolute 기준 */
-  overflow: hidden;      /* 나가는 패널이 영역 밖으로 잘리도록 */
-  border-radius: 10px;   /* 부드러운 클립 */
+  position: relative; /* panel-exit 의 absolute 기준 */
+  overflow-x: hidden; /* 나가는 패널이 영역 밖으로 잘리도록 */
+  /* overflow: hidden을 x: hidden으로 변경, 세로 확장은 허용하되 가로 확장 금지*/
+  border-radius: 10px; /* 부드러운 클립 */
   /* 뷰포트 자체는 스크롤 없음 — 패널 안에서 스크롤 */
 }
 
@@ -38,8 +47,9 @@
   flex-direction: column;
   gap: 16px;
   /* 패널 안에서 스크롤 */
-  max-height: calc(100vh - 64px - 40px); /* 네비바 + 패딩 */
-  overflow-y: auto;
+  /* 높이 제한 해제 및 콘텐츠 내부 스크롤 삭제 */
+  /* max-height: calc(100vh - 64px - 40px); 네비바 + 패딩 */
+  /* overflow-y: auto; */
   padding-bottom: 8px;
 }
 
@@ -58,39 +68,67 @@
 
 /* ===== 애니메이션 ===== */
 @keyframes enterFromRight {
-  from { transform: translateX(48px); opacity: 0; }
-  to   { transform: translateX(0);    opacity: 1; }
+  from {
+    transform: translateX(48px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 @keyframes enterFromLeft {
-  from { transform: translateX(-48px); opacity: 0; }
-  to   { transform: translateX(0);     opacity: 1; }
+  from {
+    transform: translateX(-48px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 @keyframes exitToLeft {
-  from { transform: translateX(0);      opacity: 1; }
-  to   { transform: translateX(-48px);  opacity: 0; }
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-48px);
+    opacity: 0;
+  }
 }
 @keyframes exitToRight {
-  from { transform: translateX(0);     opacity: 1; }
-  to   { transform: translateX(48px);  opacity: 0; }
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(48px);
+    opacity: 0;
+  }
 }
 
-.panel-enter.enter-right { animation: enterFromRight 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
-.panel-enter.enter-left  { animation: enterFromLeft  0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
-.panel-exit.exit-left    { animation: exitToLeft     0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
-.panel-exit.exit-right   { animation: exitToRight    0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
-
-/* ===== 학술 자료 ===== */
-.academic-section {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 20px;
+.panel-enter.enter-right {
+  animation: enterFromRight 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
 }
-.academic-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
-.academic-desc  { font-size: 13px; color: #888; }
+.panel-enter.enter-left {
+  animation: enterFromLeft 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+.panel-exit.exit-left {
+  animation: exitToLeft 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+.panel-exit.exit-right {
+  animation: exitToRight 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
 
 /* ===== 반응형 ===== */
 @media (max-width: 700px) {
-  .layout { flex-direction: column; padding: 12px; gap: 12px; }
-  .content-panel { max-height: none; }
+  .layout {
+    flex-direction: column;
+    padding: 12px;
+    gap: 12px;
+  }
+  .content-panel {
+    max-height: none;
+  }
 }

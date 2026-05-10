@@ -1,0 +1,90 @@
+/* ===== 학술 자료 (높이 고정 및 세로 공간 최적화) ===== */
+.academic-section {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 12px; /* 상단 여백 축소 */
+  flex-shrink: 0; /* 시간표에 밀려 컴포넌트가 찌그러지지 않도록 고정 */
+}
+
+.academic-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.academic-desc {
+  font-size: 13px;
+  color: #888;
+  margin: 0;
+}
+
+.academic-carousel {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 12px;
+  transition: all 0.3s ease-in-out;
+}
+
+.academic-carousel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.academic-course-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2563eb;
+  margin: 0;
+}
+
+.academic-indicator {
+  font-size: 12px;
+  color: #64748b;
+  background-color: #e2e8f0;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+/* 🚀 핵심 변경점: 세로 리스트를 가로(Row) 배치로 변경하여 공간 절약 */
+.academic-resource-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: row; /* 가로 배치 */
+  gap: 12px;
+}
+
+.academic-resource-item {
+  flex: 1; /* 3개의 논문 카드가 1:1:1 비율로 동일한 너비를 가짐 */
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  min-width: 0; /* Flex 자식 요소가 컨테이너 밖으로 튀어나가는 현상 방지 */
+}
+
+.resource-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+  margin-bottom: 6px;
+  /* 🚀 제목이 너무 길면 한 줄로 처리하고 말줄임표(...) 적용 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.resource-meta {
+  font-size: 12px;
+  color: #64748b;
+}
