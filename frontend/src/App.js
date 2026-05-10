@@ -8,6 +8,7 @@ import GradeCalculator from './components/grade/GradeCalculator'
 import AssignmentPage from './components/assignment/AssignmentPage'
 import EnrollmentPage from './components/enrollment/EnrollmentPage'
 import MyPage from './components/mypage/MyPage'
+import AcademicSection from './components/academic/AcademicSection'
 
 
 const API_BASE_URL = 'http://localhost:8000'
@@ -24,14 +25,6 @@ const PAGES = ['main', 'grade', 'assignment', 'enroll', 'mypage']
 
 const ASSIGNMENT_STORAGE_KEY = 'assignment-dashboard-data'
 
-function AcademicSection() {
-  return (
-    <div className="academic-section">
-      <h2 className="academic-title">학술 자료</h2>
-      <p className="academic-desc">학술 논문 및 관련 자료 검색</p>
-    </div>
-  )
-}
 
 // 날짜를 YYYY-MM-DD 형태로 변환
 function formatDateKey(date) {
@@ -270,7 +263,7 @@ export default function App() {
               activePlan={activePlan}
               setActivePlan={setActivePlan}
             />
-            <AcademicSection />
+            <AcademicSection enrolledCourses={savedLectures}/>
           </>
         )
       case 'grade':

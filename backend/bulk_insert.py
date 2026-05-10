@@ -2,7 +2,7 @@ import json
 from database import SessionLocal
 import models
 
-def run_bulk_insert():
+def insert_lectures():
     db = SessionLocal()
     try:
         # 1. JSON 파일 읽어오기
@@ -62,4 +62,4 @@ def run_bulk_insert():
         db.close()
 
 if __name__ == "__main__":
-    run_bulk_insert()
+    insert_lectures()

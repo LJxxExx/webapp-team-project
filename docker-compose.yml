@@ -12,6 +12,7 @@ services:
 
   backend:
     build: ./backend
+    restart: on-failure
     ports:
       - "8000:8000"
     volumes:
@@ -19,6 +20,8 @@ services:
     depends_on:
       db:
         condition: service_healthy  # DB가 '건강함' 상태가 될 때까지 백엔드 실행을 대기합니다.
+    
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
   db:
     image: mysql:8.0
