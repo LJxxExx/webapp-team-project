@@ -9,21 +9,21 @@ graph TD
     
     %% 서비스 구성 요소
     subgraph Docker Compose Environment
-        Frontend[Frontend Service<br/>(React)]
-        Backend[Backend Service<br/>(FastAPI)]
-        DB[(Database Service<br/>MySQL 8.0)]
+        Frontend["Frontend Service<br/>(React)"]
+        Backend["Backend Service<br/>(FastAPI)"]
+        DB[("Database Service<br/>MySQL 8.0")]
     end
     
     %% 프론트 접속
-    User -->|1. 웹페이지 접속<br/>(http://localhost:3000)| Frontend
+    User -->|"1. 웹페이지 접속<br/>(http://localhost:3000)"| Frontend
     
     %% 프론트엔드 -> 백엔드 통신 (Axios API 요청)
-    User -.->|2. API 요청 (Axios)<br/>GET / POST / PUT / DELETE<br/>(http://localhost:8000/api/*)| Backend
-    Backend -.->|5. JSON 데이터 응답<br/>(CORS 허용: localhost:3000)| User
+    User -.->|"2. API 요청 (Axios)<br/>GET / POST / PUT / DELETE<br/>(http://localhost:8000/api/*)"| Backend
+    Backend -.->|"5. JSON 데이터 응답<br/>(CORS 허용: localhost:3000)"| User
     
     %% 백엔드 -> DB 통신 (SQLAlchemy ORM)
-    Backend -->|3. SQL 쿼리 실행<br/>(SQLAlchemy ORM, TCP 3306)| DB
-    DB -.->|4. 데이터 반환| Backend
+    Backend -->|"3. SQL 쿼리 실행<br/>(SQLAlchemy ORM, TCP 3306)"| DB
+    DB -.->|"4. 데이터 반환"| Backend
 
     %% 노드 스타일링
     style User fill:#f9f9f9,stroke:#333,stroke-width:2px,color:#000
