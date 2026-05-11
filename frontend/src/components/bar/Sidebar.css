@@ -92,3 +92,15 @@
   color: #111;
   background: rgba(255,255,255,0.15);
 }
+
+.assignment-subject {
+  font-size: 11px;
+  color: #888;
+}
+
+.assignment-empty {
+  font-size: 13px;
+  color: #888;
+  line-height: 1.5;
+  padding: 6px 0;
+}

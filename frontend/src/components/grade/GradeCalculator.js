@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react'
 import './GradeCalculator.css'
-import { gradeCoursesData } from '../data'
 
 const GRADE_TABLE = [
   { grade: 'A+', gpa: 4.5, minScore: 95 },
@@ -29,9 +28,10 @@ function scoreToGrade(score) {
 }
 
 function calcRisk(course) {
-  const { totalClass, absent = 0, hwTotal, hwMiss = 0, exam = null } = course
+  const { totalClass, absent = 0, hwRate: hwRateOverride = null, exam = null } = course
   const attRate = Math.round(((totalClass - absent) / totalClass) * 100)
-  const hwRate  = hwTotal === 0 ? 100 : Math.round(((hwTotal - hwMiss) / hwTotal) * 100)
+  // hwRate는 외부(과제 완료 기반)에서 주입되거나, 없으면 100으로 기본값
+  const hwRate  = hwRateOverride !== null ? hwRateOverride : 100
   const examScore = exam !== null && exam !== '' ? Number(exam) : null
   let risk = 0
   if (attRate < 75) risk += 40; else if (attRate < 85) risk += 20; else risk += 5
@@ -46,26 +46,43 @@ function calcRisk(course) {
   return { attRate, hwRate, risk, level, grade: gradeInfo.grade, gpa: gradeInfo.gpa, approxScore }
 }
 
-// lectureCatalog 강의를 gradeCoursesData 포맷으로 변환
-function lectureToGradeCourse(lecture, index) {
+// lectureCatalog 강의를 학점 계산기 포맷으로 변환
+function lectureToGradeCourse(lecture) {
   return {
     id: `timetable-${lecture.id}`,
     name: lecture.name,
     credit: lecture.credit ?? 3,
     professor: lecture.professor,
     totalClass: 15,
-    hwTotal: 4,
   }
 }
 
-export default function GradeCalculator({ isLoggedIn, savedLectures }) {
-  // savedLectures가 있으면 시간표 기반 강의 목록 사용, 없으면 기본 데이터 사용
+export default function GradeCalculator({ isLoggedIn, savedLectures, assignments = [] }) {
+  // 시간표에 강의가 있을 때만 표시 (fallback 없음)
   const baseCourses = useMemo(() => {
     if (savedLectures && savedLectures.length > 0) {
       return savedLectures.map(lectureToGradeCourse)
     }
-    return gradeCoursesData
+    return []
   }, [savedLectures])
+
+  // 과제 완료 기반으로 각 강의별 과제 제출률 계산
+  // assignment.subject 와 lecture.name 을 매칭
+  const hwRateByCourseName = useMemo(() => {
+    const map = {}
+    baseCourses.forEach(course => {
+      const related = assignments.filter(
+        a => a.subject && a.subject.trim() === course.name.trim()
+      )
+      if (related.length === 0) {
+        map[course.id] = null // 과제 없음 → 기본값(100%) 처리
+      } else {
+        const completedCount = related.filter(a => a.isCompleted).length
+        map[course.id] = Math.round((completedCount / related.length) * 100)
+      }
+    })
+    return map
+  }, [baseCourses, assignments])
 
   const [stats, setStats] = useState({})
   const [selectedId, setSelectedId] = useState(baseCourses[0]?.id)
@@ -82,14 +99,15 @@ export default function GradeCalculator({ isLoggedIn, savedLectures }) {
 
   const courses = baseCourses.map(c => ({
     ...c,
-    ...(stats[c.id] ?? { absent: 0, hwMiss: 0, exam: null }),
+    ...(stats[c.id] ?? { absent: 0, exam: null }),
+    hwRate: hwRateByCourseName[c.id], // null이면 calcRisk에서 100으로 처리
   }))
 
   const selected = courses.find(c => c.id === effectiveSelectedId) ?? courses[0]
   const { attRate, hwRate, risk, level, grade, gpa, approxScore } = calcRisk(selected)
 
   function updateStat(key, val) {
-    setStats(prev => ({ ...prev, [effectiveSelectedId]: { ...(prev[effectiveSelectedId] ?? { absent: 0, hwMiss: 0, exam: null }), [key]: val } }))
+    setStats(prev => ({ ...prev, [effectiveSelectedId]: { ...(prev[effectiveSelectedId] ?? { absent: 0, exam: null }), [key]: val } }))
   }
 
   if (!selected) {
@@ -100,7 +118,7 @@ export default function GradeCalculator({ isLoggedIn, savedLectures }) {
         )}
         <div style={{ padding: '2rem', textAlign: 'center', color: '#888' }}>
           <p>시간표에 저장된 강의가 없습니다.</p>
-          <p>메인 페이지에서 시간표를 저장하면 강의 목록이 표시됩니다.</p>
+          <p>메인 페이지 시간표에서 강의를 추가하면 이곳에 표시됩니다.</p>
         </div>
       </div>
     )
@@ -216,9 +234,8 @@ export default function GradeCalculator({ isLoggedIn, savedLectures }) {
           <p className="gcd-section-label">실적 입력</p>
           <div className="gcd-inputs">
             {[
-              { label: `결석 횟수 (총 ${selected.totalClass}회)`, key: 'absent',  max: selected.totalClass, val: (stats[effectiveSelectedId] ?? { absent: 0 }).absent },
-              { label: `과제 미제출 (총 ${selected.hwTotal}개)`,  key: 'hwMiss',  max: selected.hwTotal,    val: (stats[effectiveSelectedId] ?? { hwMiss: 0 }).hwMiss },
-              { label: '시험 점수 (0~100)',                         key: 'exam',    max: 100,                 val: (stats[effectiveSelectedId] ?? { exam: null }).exam ?? '' },
+              { label: `결석 횟수 (총 ${selected.totalClass}회)`, key: 'absent', max: selected.totalClass, val: (stats[effectiveSelectedId] ?? { absent: 0 }).absent },
+              { label: '시험 점수 (0~100)',                         key: 'exam',   max: 100,                 val: (stats[effectiveSelectedId] ?? { exam: null }).exam ?? '' },
             ].map(({ label, key, max, val }) => (
               <div key={key} className="gcd-input-row">
                 <label className="gcd-input-label">{label}</label>
@@ -231,6 +248,28 @@ export default function GradeCalculator({ isLoggedIn, savedLectures }) {
                 />
               </div>
             ))}
+            <div className="gcd-input-row">
+              <label className="gcd-input-label">과제 제출률</label>
+              <div className="gcd-hw-rate-display">
+                {hwRateByCourseName[effectiveSelectedId] === null ? (
+                  <span className="gcd-hw-rate-none">등록된 과제 없음</span>
+                ) : (
+                  <>
+                    <div className="gcd-hw-rate-bar-track">
+                      <div
+                        className="gcd-hw-rate-bar-fill"
+                        style={{
+                          width: `${hwRate}%`,
+                          background: hwRate >= 80 ? '#639922' : hwRate >= 60 ? '#EF9F27' : '#E24B4A',
+                        }}
+                      />
+                    </div>
+                    <span className="gcd-hw-rate-pct">{hwRate}%</span>
+                  </>
+                )}
+                <span className="gcd-hw-rate-hint">과제 페이지 체크리스트에서 자동 반영됩니다</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

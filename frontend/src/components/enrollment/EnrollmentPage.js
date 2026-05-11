@@ -48,23 +48,22 @@ export default function EnrollmentPage({ isLoggedIn }) {
 }*/
 
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import './EnrollmentPage.css';
+
+const API_BASE_URL = 'http://localhost:8000';
 
 /**
  * 수강신청 메인 컴포넌트
  * @param {boolean} isLoggedIn - 부모 컴포넌트로부터 전달받은 로그인 상태
+ * @param {object} user - 현재 로그인한 사용자 정보
+ * @param {function} onRefreshData - 상위 컴포넌트의 데이터를 갱신하기 위한 함수
  */
-const EnrollmentPage = ({ isLoggedIn }) => {
+const EnrollmentPage = ({ isLoggedIn, user, onRefreshData }) => {
     // --------------------------------------------------------
     // [상태 관리] 
     // --------------------------------------------------------
-    const [wishlist, setWishlist] = useState([
-        { id: '23001-11', name: '영화와만난커뮤니케이션', credit: 3, type: '균형교양', time: '화3:00~10:15 목15:00~16:15', dayNight: '주간' },
-        { id: '23750-02', name: '웹어플리케이션', credit: 3, type: '전공선택', time: '화13:30~15:20 목10:30~12:20', dayNight: '주간' },
-        { id: '23751-03', name: '컴퓨터네트워크', credit: 3, type: '전공선택', time: '월12:00~13:15 수16:30~17:45', dayNight: '주간' },
-        { id: '23788-01', name: '운영체제', credit: 3, type: '전공선택', time: '월15:00~16:15 목9:00~10:15', dayNight: '주간' },
-    ]);
-
+    const [wishlist, setWishlist] = useState([]);
     const [enrolled, setEnrolled] = useState([]);
     const [securityCode, setSecurityCode] = useState('');
     const [userInputCode, setUserInputCode] = useState('');
@@ -77,36 +76,75 @@ const EnrollmentPage = ({ isLoggedIn }) => {
         setUserInputCode('');
     };
 
+    // 초기 데이터 로딩
     useEffect(() => {
         generateCode();
-    }, []);
+        if (isLoggedIn && user) {
+            fetchData();
+        }
+    }, [isLoggedIn, user]);
 
-    const handleAction = (action, course) => {
+    const fetchData = async () => {
+        try {
+            // 1. 전체 강의 목록 가져오기
+            const lecturesRes = await axios.get(`${API_BASE_URL}/api/lectures`);
+            const allLectures = lecturesRes.data.map(l => ({
+                id: l.id,
+                name: l.name,
+                credit: l.credit,
+                type: l.category,
+                time: l.meetings.map(m => `${m.day}${m.startHour}:${String(m.startMinute).padStart(2, '0')}~${m.endHour}:${String(m.endMinute).padStart(2, '0')}`).join(' '),
+                dayNight: '주간'
+            }));
+
+            // 2. 현재 사용자의 수강 신청 내역 가져오기
+            const enrolledRes = await axios.get(`${API_BASE_URL}/api/users/${user.id}/timetable`);
+            const enrolledIds = new Set(enrolledRes.data.map(e => e.lectureId));
+
+            // 3. 신청 완료된 것은 enrolled로, 나머지는 wishlist로 (연습용 UI 유지)
+            const currentEnrolled = allLectures.filter(l => enrolledIds.has(l.id));
+            const currentWishlist = allLectures.filter(l => !enrolledIds.has(l.id));
+
+            setEnrolled(currentEnrolled);
+            setWishlist(currentWishlist);
+        } catch (err) {
+            console.error('데이터 로딩 실패:', err);
+        }
+    };
+
+    const handleAction = async (action, course) => {
         if (userInputCode !== securityCode) {
             alert("보안코드를 정확히 입력해 주십시오.");
             return;
         }
 
-        if (action === 'enroll') {
-            setEnrolled([...enrolled, course]);
-            setWishlist(wishlist.filter(c => c.id !== course.id));
-            alert(`${course.name} 신청이 완료되었습니다.`);
-        }
-        else if (action === 'cancel') {
-            setWishlist([...wishlist, course]);
-            setEnrolled(enrolled.filter(c => c.id !== course.id));
-            alert("삭제되었습니다.");
-        }
-        else if (action === 'direct') {
-            const fullId = `${directId1}-${directId2}`;
-            if (!directId1 || !directId2) {
-                alert("과목코드를 입력해 주세요.");
-                return;
+        try {
+            if (action === 'enroll') {
+                await axios.post(`${API_BASE_URL}/api/users/${user.id}/enrollments`, { lecture_id: course.id });
+                alert(`${course.name} 신청이 완료되었습니다.`);
             }
-            const newCourse = { id: fullId, name: '직접추가과목', credit: 3, type: '전공선택', time: '시간 미지정', dayNight: '주간' };
-            setEnrolled([...enrolled, newCourse]);
-            setDirectId1(''); setDirectId2('');
-            alert("추가되었습니다.");
+            else if (action === 'cancel') {
+                await axios.delete(`${API_BASE_URL}/api/users/${user.id}/enrollments/${course.id}`);
+                alert("삭제되었습니다.");
+            }
+            else if (action === 'direct') {
+                const fullId = `${directId1}-${directId2}`; // 실제로는 DB에 존재하는 ID여야 함
+                if (!directId1 || !directId2) {
+                    alert("과목코드를 입력해 주세요.");
+                    return;
+                }
+                // 직접 추가 기능도 백엔드 연결 가능 (여기서는 간소화)
+                await axios.post(`${API_BASE_URL}/api/users/${user.id}/enrollments`, { lecture_id: fullId });
+                alert("추가되었습니다.");
+                setDirectId1(''); setDirectId2('');
+            }
+
+            // 성공 후 데이터 다시 불러오기 및 상위 컴포넌트 알림
+            fetchData();
+            if (onRefreshData) onRefreshData();
+        } catch (err) {
+            console.error('작업 실패:', err);
+            alert('요청을 처리하는 중 오류가 발생했습니다. (과목 코드를 확인하세요)');
         }
 
         generateCode();
