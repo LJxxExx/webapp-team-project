@@ -104,7 +104,6 @@ export default function GradeCalculator({ isLoggedIn, savedLectures, assignments
   }))
 
   const selected = courses.find(c => c.id === effectiveSelectedId) ?? courses[0]
-  const { attRate, hwRate, risk, level, grade, gpa, approxScore } = calcRisk(selected)
 
   function updateStat(key, val) {
     setStats(prev => ({ ...prev, [effectiveSelectedId]: { ...(prev[effectiveSelectedId] ?? { absent: 0, exam: null }), [key]: val } }))
@@ -123,6 +122,8 @@ export default function GradeCalculator({ isLoggedIn, savedLectures, assignments
       </div>
     )
   }
+
+  const { attRate, hwRate, risk, level, grade, gpa, approxScore } = calcRisk(selected)
 
   const dangerCount = courses.filter(c => calcRisk(c).level === 'danger').length
   const avgRisk = Math.round(courses.reduce((s, c) => s + calcRisk(c).risk, 0) / courses.length)
