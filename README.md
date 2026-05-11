@@ -30,6 +30,65 @@ graph TD
     style Frontend fill:#61DAFB,stroke:#333,stroke-width:2px,color:#000
     style Backend fill:#05998b,stroke:#333,stroke-width:2px,color:#fff
     style DB fill:#e48e00,stroke:#333,stroke-width:2px,color:#fff
+
+
+graph TB
+    subgraph Frontend ["Frontend (React)"]
+        App["App.js"] --> Nav["Navbar"]
+        App --> Sidebar["Sidebar"]
+        App --> Timetable["Timetable"]
+        App --> GradeCalc["GradeCalculator"]
+        App --> AssignPage["AssignmentPage"]
+        App --> EnrollPage["EnrollmentPage"]
+        App --> MyPage["MyPage"]
+        App --> Academic["AcademicSection"]
+    end
+
+    subgraph Backend ["Backend (FastAPI)"]
+        Main["main.py (Endpoints)"]
+        Models["models.py (ORM Models)"]
+        DBEngine["database.py (DB Engine)"]
+        
+        Main -.-> Models
+        Models -.-> DBEngine
+        
+        subgraph APIs ["APIs"]
+            ApiLec["/api/lectures"]
+            ApiTime["/api/users/{id}/timetable"]
+            ApiEnroll["/api/users/{id}/enrollments"]
+            ApiAssign["/api/users/{id}/assignments"]
+            ApiAssignId["/api/assignments/{id}"]
+        end
+        
+        Main --- ApiLec
+        Main --- ApiTime
+        Main --- ApiEnroll
+        Main --- ApiAssign
+        Main --- ApiAssignId
+    end
+
+    subgraph Database ["Database (MySQL)"]
+        UserTbl["User Table"]
+        AssignTbl["Assignment Table"]
+        EnrollTbl["Enrollment Table"]
+        LecTbl["Lecture Table"]
+        LecMeetTbl["LectureMeeting Table"]
+    end
+
+    %% Communication (프론트 -> 백엔드)
+    App -- "Axios (HTTP/JSON)" --> Main
+    
+    %% Relationships (백엔드 -> DB)
+    Models --- UserTbl
+    Models --- AssignTbl
+    Models --- EnrollTbl
+    Models --- LecTbl
+    Models --- LecMeetTbl
+
+    UserTbl -- "1:N" --> AssignTbl
+    UserTbl -- "1:N" --> EnrollTbl
+    LecTbl -- "1:N" --> EnrollTbl
+    LecTbl -- "1:N" --> LecMeetTbl
 ```
 
 ### 아키텍처 상세 설명
