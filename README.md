@@ -30,8 +30,8 @@ graph TD
     style Frontend fill:#61DAFB,stroke:#333,stroke-width:2px,color:#000
     style Backend fill:#05998b,stroke:#333,stroke-width:2px,color:#fff
     style DB fill:#e48e00,stroke:#333,stroke-width:2px,color:#fff
-
-
+```
+```mermaid
 graph TB
     subgraph Frontend ["Frontend (React)"]
         App["App.js"] --> Nav["Navbar"]
