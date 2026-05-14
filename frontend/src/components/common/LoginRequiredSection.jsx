@@ -1,6 +1,7 @@
 import React from 'react'
 import './LoginRequiredSection.css'
 
+// 미로그인 시 블러 처리 및 안내 문구
 export default function LoginRequiredSection({
   isLoggedIn,
   className = '',
