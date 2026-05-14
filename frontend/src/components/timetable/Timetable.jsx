@@ -1,113 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import LoginRequiredSection from '../common/LoginRequiredSection'
+import axios from 'axios'
 import './Timetable.css'
 
 
+const API_BASE_URL = 'http://localhost:8000'
 
 // 시간표 기본틀
 const DAYS = ['월', '화', '수', '목', '금']
 const HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
 const TIMETABLE_START = 9 * 60
 const TIMETABLE_END = 19 * 60
-const TIMETABLE_COLORS = [
-  '#A7D8DE',
-  '#F6D6AD',
-  '#C9E7B8',
-  '#D7C6F2',
-  '#F6C6D0',
-  '#BBD7F2',
-  '#F1E6A8',
-  '#C7E4D4',
-  '#E5C7B7',
-  '#C9D6E8',
-]
-const COLLEGE_ORDER = [
-  '인문국제학대학',
-  '사범대학',
-  '경영대학',
-  '사회과학대학',
-  '자연과학대학',
-  '공과대학',
-  '의과대학',
-  '간호대학',
-  '음악공연예술대학',
-  '미술대학',
-  '체육대학',
-  'Keimyung Adams College',
-  'Tabula Rasa College',
-  '약학대학',
-  'K-Cloud College',
-]
-const COLLEGE_ORDER_MAP = new Map(COLLEGE_ORDER.map((college, index) => [college, index]))
 
-const ALL_OPTION = '전체'
-const ENGINEERING_COLLEGE = '공과대학'
-const ENGINEERING_DIVISION_ORDER = [
-  '건축토목공학부',
-  '전자전기공학부',
-  '컴퓨터공학부',
-  '도시학부',
-  '스마트모빌리티공학부',
-  '화공신소재공학부',
-  '로봇공학과',
-  '산업공학과',
-  '의용공학과',
-  '환경공학과',
-]
-const ENGINEERING_DIVISION_ORDER_MAP = new Map(ENGINEERING_DIVISION_ORDER.map((division, index) => [division, index]))
-
-function pickCourseColor(courses) {
-  const usedColors = uniqueValues(courses.map(course => course.color))
-  const availableColors = TIMETABLE_COLORS.filter(color => !usedColors.includes(color))
-  const colorPool = availableColors.length > 0 ? availableColors : TIMETABLE_COLORS
-
-  return colorPool[Math.floor(Math.random() * colorPool.length)]
-}
-
-function getLectureKeyFromEntry(entry) {
-  if (entry.lectureId) return entry.lectureId
-  if (entry.lectureCode && entry.sectionCode) return `${entry.lectureCode}-${entry.sectionCode}`
-  return entry.id
-}
-
-function assignColorsToPlanEntries(entries) {
-  const colorMap = new Map()
-  const assignedColorEntries = []
-  let changed = false
-
-  entries.forEach(entry => {
-    const lectureKey = getLectureKeyFromEntry(entry)
-    if (lectureKey && entry.colorAssigned && entry.color && !colorMap.has(lectureKey)) {
-      colorMap.set(lectureKey, entry.color)
-      assignedColorEntries.push({ color: entry.color })
-    }
-  })
-
-  const nextEntries = entries.map(entry => {
-    const lectureKey = getLectureKeyFromEntry(entry)
-    if (!lectureKey) return entry
-
-    if (!colorMap.has(lectureKey)) {
-      const nextColor = pickCourseColor(assignedColorEntries)
-      colorMap.set(lectureKey, nextColor)
-      assignedColorEntries.push({ color: nextColor })
-    }
-
-    const nextColor = colorMap.get(lectureKey)
-    if (entry.color === nextColor && entry.colorAssigned) return entry
-
-    changed = true
-    return {
-      ...entry,
-      color: nextColor,
-      colorAssigned: true,
-    }
-  })
-
-  return changed ? nextEntries : entries
-}
-
-function localCreateTimetableEntries(lectures, colorByLectureId = new Map()) {
+function localCreateTimetableEntries(lectures) {
   return lectures.flatMap(lecture =>
     lecture.meetings.map((meeting, index) => ({
       id: `${lecture.id}-${index}`,
@@ -118,8 +22,7 @@ function localCreateTimetableEntries(lectures, colorByLectureId = new Map()) {
       lectureCode: lecture.lectureCode,
       sectionCode: lecture.sectionCode,
       credit: lecture.credit,
-      color: colorByLectureId.get(lecture.id) || TIMETABLE_COLORS[0],
-      colorAssigned: true,
+      color: lecture.color,
       day: meeting.day,
       startHour: meeting.startHour,
       startMinute: meeting.startMinute || 0,
@@ -134,13 +37,12 @@ function formatRoom(room) {
   if (!room) return ''
 
   return room
-    .replace(/^공학\d호관\s*/, '공')
+    .replace(/^공학1호관\s*/, '공')
+    .replace(/^공학2호관\s*/, '공')
     .replace(/^의양관\s*/, '의')
     .replace(/^영암관\s*/, '영')
     .replace(/^백은관\s*/, '백')
     .replace(/^쉐턱관\s*/, '쉐')
-    .replace(/^덕래관\s*/, '덕')
-    .replace(/^스미스관\s*/, '스')
     .replace(/^동천관\s*/, '동')
     .replace(/^대명비사관\s*/, '대')
     .replace(/^바우어관\s*/, '바')
@@ -155,44 +57,6 @@ function formatRoom(room) {
 
 function uniqueValues(values) {
   return [...new Set(values.filter(Boolean))]
-}
-
-function getDivisionName(lecture) {
-  return lecture.divisionName || lecture.department || ''
-}
-
-function getDivisionCode(lecture) {
-  return lecture.divisionCode || ''
-}
-
-function getMajorName(lecture) {
-  return lecture.majorName || lecture.department || ''
-}
-
-function getMajorCode(lecture) {
-  return lecture.majorCode || ''
-}
-
-function sortAcademicOptions(entries, orderMap = new Map()) {
-  return Array.from(entries)
-    .sort(([nameA, codeA], [nameB, codeB]) => {
-      const orderA = orderMap.has(nameA) ? orderMap.get(nameA) : Number.MAX_SAFE_INTEGER
-      const orderB = orderMap.has(nameB) ? orderMap.get(nameB) : Number.MAX_SAFE_INTEGER
-
-      return orderA - orderB || String(codeA || '99999').localeCompare(String(codeB || '99999'), 'ko') || nameA.localeCompare(nameB, 'ko')
-    })
-    .map(([name]) => name)
-}
-
-function getAcademicPath(lecture) {
-  const division = getDivisionName(lecture)
-  const majorName = getMajorName(lecture)
-  const parts = [lecture.college]
-
-  if (division) parts.push(division)
-  if (majorName && majorName !== division) parts.push(majorName)
-
-  return parts.filter(Boolean).join(' / ')
 }
 
 function toMinutes({ startHour, startMinute = 0, endHour, endMinute = 0 }, type = 'start') {
@@ -214,10 +78,6 @@ function includesKeyword(lecture, keyword) {
     lecture.lectureCode,
     lecture.sectionCode,
     lecture.department,
-    lecture.divisionName,
-    lecture.divisionCode,
-    lecture.majorName,
-    lecture.majorCode,
     lecture.college,
     lecture.liberalType,
     lecture.liberalArea,
@@ -244,29 +104,27 @@ function getCourseStyle(course) {
   }
 }
 
-export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans, setSavedPlans, activePlan, setActivePlan }) {
+export default function Timetable({ isLoggedIn, user, savedPlans, setSavedPlans, activePlan, setActivePlan }) {
   const [courses, setCourses] = useState(savedPlans[activePlan] || [])
   const [isSettingOpen, setIsSettingOpen] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [lectureType, setLectureType] = useState('전공')
+  const [lectureCatalog, setLectureCatalog] = useState([])
+
+  // 백엔드에서 강의 목록 가져오기
+  useEffect(() => {
+    axios.get(`${API_BASE_URL}/api/lectures`)
+      .then(res => setLectureCatalog(res.data))
+      .catch(err => console.error('강의 목록 로딩 실패:', err))
+  }, [])
 
   // 부모(App.js)에서 백엔드 데이터를 가져오면 courses 상태를 동기화
   useEffect(() => {
-    const planCourses = savedPlans[activePlan] || []
-    const colorAssignedCourses = assignColorsToPlanEntries(planCourses)
+    setCourses(savedPlans[activePlan] || [])
+  }, [savedPlans, activePlan])
 
-    setCourses(colorAssignedCourses)
-    if (colorAssignedCourses !== planCourses) {
-      setSavedPlans(prevPlans => ({
-        ...prevPlans,
-        [activePlan]: colorAssignedCourses,
-      }))
-    }
-  }, [activePlan, savedPlans, setSavedPlans])
-
-  const [selectedCollege, setSelectedCollege] = useState(ENGINEERING_COLLEGE)
-  const [selectedDivision, setSelectedDivision] = useState(ALL_OPTION)
-  const [selectedMajor, setSelectedMajor] = useState(ALL_OPTION)
+  const [selectedCollege, setSelectedCollege] = useState('공과대학')
+  const [selectedDepartment, setSelectedDepartment] = useState('컴퓨터공학과')
   const [selectedLiberalType, setSelectedLiberalType] = useState('공통교양')
   const [selectedLiberalArea, setSelectedLiberalArea] = useState('전체')
   const [message, setMessage] = useState('')
@@ -293,77 +151,24 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     [courses]
   )
 
-  const selectedLectures = useMemo(() => {
-    const colorMap = new Map()
-    courses.forEach(course => {
-      if (course.lectureId && course.color && !colorMap.has(course.lectureId)) {
-        colorMap.set(course.lectureId, course.color)
-      }
-    })
+  const selectedLectures = useMemo(
+    () => lectureCatalog.filter(lecture => selectedLectureIds.has(lecture.id)),
+    [lectureCatalog, selectedLectureIds]
+  )
 
-    return lectureCatalog
-      .filter(lecture => selectedLectureIds.has(lecture.id))
-      .map(lecture => ({
-        ...lecture,
-        color: colorMap.get(lecture.id) || TIMETABLE_COLORS[0],
-      }))
-  }, [courses, lectureCatalog, selectedLectureIds])
+  const colleges = useMemo(
+    () => uniqueValues(lectureCatalog.filter(lecture => lecture.category === '전공').map(lecture => lecture.college)),
+    [lectureCatalog]
+  )
 
-  const colleges = useMemo(() => {
-    const collegeMap = new Map()
-
-    lectureCatalog
-      .filter(lecture => lecture.category === '전공' && lecture.college)
-      .forEach(lecture => {
-        if (!collegeMap.has(lecture.college)) {
-          collegeMap.set(lecture.college, lecture.collegeCode || '99999')
-        }
-      })
-
-    return Array.from(collegeMap.entries())
-      .sort(([collegeA, codeA], [collegeB, codeB]) => {
-        const orderA = COLLEGE_ORDER_MAP.has(collegeA) ? COLLEGE_ORDER_MAP.get(collegeA) : Number.MAX_SAFE_INTEGER
-        const orderB = COLLEGE_ORDER_MAP.has(collegeB) ? COLLEGE_ORDER_MAP.get(collegeB) : Number.MAX_SAFE_INTEGER
-
-        return orderA - orderB || codeA.localeCompare(codeB, 'ko') || collegeA.localeCompare(collegeB, 'ko')
-      })
-      .map(([college]) => college)
-  }, [lectureCatalog])
-
-  const divisions = useMemo(() => {
-    const divisionMap = new Map()
-
-    lectureCatalog
-      .filter(lecture => lecture.category === '전공' && lecture.college === selectedCollege)
-      .forEach(lecture => {
-        const divisionName = getDivisionName(lecture)
-        if (divisionName && !divisionMap.has(divisionName)) {
-          divisionMap.set(divisionName, getDivisionCode(lecture))
-        }
-      })
-
-    const orderMap = selectedCollege === ENGINEERING_COLLEGE ? ENGINEERING_DIVISION_ORDER_MAP : new Map()
-    return [ALL_OPTION, ...sortAcademicOptions(divisionMap.entries(), orderMap)]
-  }, [lectureCatalog, selectedCollege])
-
-  const majors = useMemo(() => {
-    const majorMap = new Map()
-
-    lectureCatalog
-      .filter(lecture =>
-        lecture.category === '전공' &&
-        lecture.college === selectedCollege &&
-        (selectedDivision === ALL_OPTION || getDivisionName(lecture) === selectedDivision)
-      )
-      .forEach(lecture => {
-        const majorName = getMajorName(lecture)
-        if (majorName && !majorMap.has(majorName)) {
-          majorMap.set(majorName, getMajorCode(lecture))
-        }
-      })
-
-    return [ALL_OPTION, ...sortAcademicOptions(majorMap.entries())]
-  }, [lectureCatalog, selectedCollege, selectedDivision])
+  const departments = useMemo(
+    () => uniqueValues(
+      lectureCatalog
+        .filter(lecture => lecture.category === '전공' && lecture.college === selectedCollege)
+        .map(lecture => lecture.department)
+    ),
+    [lectureCatalog, selectedCollege]
+  )
 
   const liberalTypes = useMemo(
     () => uniqueValues(lectureCatalog.filter(lecture => lecture.category === '교양').map(lecture => lecture.liberalType)),
@@ -384,9 +189,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     return lectureCatalog.filter(lecture => {
       const typeMatched = lecture.category === lectureType
       const majorMatched = lectureType === '전공'
-        ? lecture.college === selectedCollege &&
-          (selectedDivision === ALL_OPTION || getDivisionName(lecture) === selectedDivision) &&
-          (selectedMajor === ALL_OPTION || getMajorName(lecture) === selectedMajor)
+        ? lecture.college === selectedCollege && lecture.department === selectedDepartment
         : true
       const liberalMatched = lectureType === '교양'
         ? lecture.liberalType === selectedLiberalType &&
@@ -396,7 +199,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
 
       return typeMatched && majorMatched && liberalMatched && keywordMatched
     })
-  }, [lectureCatalog, lectureType, searchText, selectedCollege, selectedDivision, selectedMajor, selectedLiberalArea, selectedLiberalType])
+  }, [lectureCatalog, lectureType, searchText, selectedCollege, selectedDepartment, selectedLiberalArea, selectedLiberalType])
 
   function changeLectureType(nextType) {
     setLectureType(nextType)
@@ -405,14 +208,13 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
   }
 
   function changeCollege(nextCollege) {
+    const nextDepartments = uniqueValues(
+      lectureCatalog
+        .filter(lecture => lecture.category === '전공' && lecture.college === nextCollege)
+        .map(lecture => lecture.department)
+    )
     setSelectedCollege(nextCollege)
-    setSelectedDivision(ALL_OPTION)
-    setSelectedMajor(ALL_OPTION)
-  }
-
-  function changeDivision(nextDivision) {
-    setSelectedDivision(nextDivision)
-    setSelectedMajor(ALL_OPTION)
+    setSelectedDepartment(nextDepartments[0] || '')
   }
 
   function changeLiberalType(nextType) {
@@ -431,45 +233,68 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     )
   }
 
-  // 시간표 생성 모달은 수강신청 DB를 바꾸지 않고 현재 1안/2안만 편집합니다.
-  function updateActivePlan(updater) {
-    setCourses(prevCourses => {
-      const nextCourses = updater(prevCourses)
-      setSavedPlans(prevPlans => ({
-        ...prevPlans,
-        [activePlan]: nextCourses
-      }))
-      return nextCourses
-    })
-  }
-
+  // 시간표 상태 알람
   function addLecture(lecture) {
     if (selectedLectureIds.has(lecture.id)) {
       showMessage('이미 시간표에 추가된 강의입니다.', 'error')
       return
     }
 
-    const lectureColor = pickCourseColor(courses)
-    const newEntries = localCreateTimetableEntries([lecture], new Map([[lecture.id, lectureColor]]))
+    const newEntries = localCreateTimetableEntries([lecture])
     if (hasConflict(newEntries)) {
       showMessage('같은 요일과 시간에 겹치는 강의가 있습니다.', 'error')
       return
     }
 
-    updateActivePlan(prev => [...prev, ...newEntries])
-    showMessage(`${lecture.name} 강의를 ${activePlan === 'plan1' ? '1안' : '2안'}에 추가했습니다.`)
+    // 백엔드 수강신청 API 호출 (TEST_USER 학번 사용)
+    const student_id = user ? user.id : '20220001'
+    axios.post(`${API_BASE_URL}/api/users/${student_id}/enrollments`, { lecture_id: lecture.id })
+      .then(() => {
+        setCourses(prev => [...prev, ...newEntries])
+        showMessage(`${lecture.name} 강의를 추가했습니다.`)
+        // App.js 상태도 동시 업데이트 (필요시)
+        setSavedPlans(prev => ({ ...prev, [activePlan]: [...courses, ...newEntries] }))
+      })
+      .catch(err => {
+        console.error('수강신청 실패:', err)
+        showMessage('수강신청 중 오류가 발생했습니다.', 'error')
+      })
   }
 
   function deleteLecture(lectureId) {
-    updateActivePlan(prev => prev.filter(course => course.lectureId !== lectureId))
-    showMessage('강의를 시간표에서 삭제했습니다.')
+    const student_id = user ? user.id : '20220001'
+    axios.delete(`${API_BASE_URL}/api/users/${student_id}/enrollments/${lectureId}`)
+      .then(() => {
+        setCourses(prev => prev.filter(course => course.lectureId !== lectureId))
+        showMessage('강의를 시간표에서 삭제했습니다.')
+        setSavedPlans(prev => ({
+          ...prev,
+          [activePlan]: (savedPlans[activePlan] || []).filter(c => c.lectureId !== lectureId)
+        }))
+      })
+      .catch(err => {
+        console.error('수강취소 실패:', err)
+        showMessage('수강취소 중 오류가 발생했습니다.', 'error')
+      })
   }
 
   function clearLectures() {
-    const deletingIds = new Set(selectedLectures.map(lecture => lecture.id))
-    updateActivePlan(prev => prev.filter(course => !deletingIds.has(course.lectureId)))
+    // 모든 강의 삭제는 하나씩 API 호출하거나 백엔드에 전체 삭제 API 필요
+    // 여기서는 UI 편의상 루프를 돌림
+    selectedLectures.forEach(l => deleteLecture(l.id))
     showMessage('추가한 강의를 모두 삭제했습니다.')
   }
+
+  function loadPlan(lectureIds, label) {
+    const lectures = lectureIds
+      .map(id => lectureCatalog.find(lecture => lecture.id === id))
+      .filter(Boolean)
+    
+    // 기존 강의 비우고 새 강의 추가 (연습용이므로 로컬에서만 동작하거나 API 대량 호출 필요)
+    setCourses(localCreateTimetableEntries(lectures))
+    showMessage(`${label}을 불러왔습니다.`)
+  }
+
   function openSavedPlan(planKey) {
     const planLabel = planKey === 'plan1' ? '1안' : '2안'
     setActivePlan(planKey)
@@ -479,7 +304,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
   }
 
   function saveTimetable() {
-    // 추가/삭제는 현재 1안/2안 state에 이미 반영되어 있으므로 여기서는 팝업만 닫음
+    // 이미 addLecture/deleteLecture에서 API를 호출하므로 여기서는 팝업만 닫음
     setIsSettingOpen(false)
     setToastMessage(`${activePlan === 'plan1' ? '1안' : '2안'}이 저장되었습니다.`)
     showMessage('')
@@ -518,7 +343,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
         </button>
       </div>
 
-      <LoginRequiredSection isLoggedIn={isLoggedIn} className="timetable-container">
+      <div className={'timetable-container' + (!isLoggedIn ? ' timetable-blurred' : '')}>
         <div className="timetable">
           <div className="timetable-head">
             <div className="th-time">시간</div>
@@ -557,7 +382,13 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
             {toastMessage}
           </div>
         )}
-      </LoginRequiredSection>
+      </div>
+
+      {!isLoggedIn && (
+        <div className="timetable-blur-overlay">
+          <span className="blur-label">'로그인이 필요합니다'</span>
+        </div>
+      )}
 
       {isLoggedIn && isSettingOpen && (
         <div className="timetable-setting-backdrop">
@@ -571,8 +402,8 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
             </div>
 
             <div className="recommend-row">
-              <button type="button" className={activePlan === 'plan1' ? 'active' : ''} aria-pressed={activePlan === 'plan1'} onClick={() => openSavedPlan('plan1')}>1안</button>
-              <button type="button" className={activePlan === 'plan2' ? 'active' : ''} aria-pressed={activePlan === 'plan2'} onClick={() => openSavedPlan('plan2')}>2안</button>
+              <button type="button" onClick={() => openSavedPlan('plan1')}>1안</button>
+              <button type="button" onClick={() => openSavedPlan('plan2')}>2안</button>
               {/* <button type="button" onClick={() => loadPlan(DEFAULT_PLAN_IDS, '기본 시간표')}>초기화</button> */}
             </div>
 
@@ -598,23 +429,17 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
                   </div>
 
                   {lectureType === '전공' ? (
-                    <div className="lecture-filter-grid major-filter-grid">
+                    <div className="lecture-filter-grid">
                       <label>
-                        대학/계열
+                        단과대학
                         <select value={selectedCollege} onChange={event => changeCollege(event.target.value)}>
                           {colleges.map(college => <option key={college} value={college}>{college}</option>)}
                         </select>
                       </label>
                       <label>
-                        학부/과
-                        <select value={selectedDivision} onChange={event => changeDivision(event.target.value)}>
-                          {divisions.map(division => <option key={division} value={division}>{division}</option>)}
-                        </select>
-                      </label>
-                      <label>
-                        전공
-                        <select value={selectedMajor} onChange={event => setSelectedMajor(event.target.value)}>
-                          {majors.map(majorName => <option key={majorName} value={majorName}>{majorName}</option>)}
+                        학과
+                        <select value={selectedDepartment} onChange={event => setSelectedDepartment(event.target.value)}>
+                          {departments.map(department => <option key={department} value={department}>{department}</option>)}
                         </select>
                       </label>
                     </div>
@@ -655,7 +480,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
                       <span>{formatRoom(lecture.room)} · {lecture.professor}</span>
                       <small>
                         {lecture.lectureCode}-{lecture.sectionCode} · {lecture.category === '전공'
-                          ? getAcademicPath(lecture)
+                          ? `${lecture.college} / ${lecture.department}`
                           : `${lecture.liberalType} / ${lecture.liberalArea}`}
                       </small>
                       <small>{formatMeetings(lecture.meetings)}</small>
