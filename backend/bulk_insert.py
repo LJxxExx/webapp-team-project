@@ -2,64 +2,93 @@ import json
 from database import SessionLocal
 import models
 
+
+def apply_lecture_fields(lecture, item):
+    lecture.lecture_code = item['lectureCode']
+    lecture.section_code = item['sectionCode']
+    lecture.name = item['name']
+    lecture.professor = item.get('professor', '')
+    lecture.room = item.get('room', '')
+    lecture.credit = item['credit']
+    lecture.category = item['category']
+    lecture.college = item.get('college', '')
+    lecture.college_code = item.get('collegeCode', '')
+    lecture.division_code = item.get('divisionCode', '')
+    lecture.division_name = item.get('divisionName', '')
+    lecture.major_code = item.get('majorCode', '')
+    lecture.major_name = item.get('majorName', '')
+    lecture.department = item.get('department', '')
+    lecture.liberal_type = item.get('liberalType', '')
+    lecture.liberal_area = item.get('liberalArea', '')
+    lecture.course_type = item.get('courseType', '')
+    lecture.target_grade = item.get('targetGrade', 0)
+    lecture.target_audience = item.get('targetAudience', '')
+    lecture.note = item.get('note', '')
+    lecture.capacity = item.get('capacity', 40)
+    lecture.enrolled = item.get('enrolled', 0)
+    lecture.success_rate = item.get('successRate', 0)
+    lecture.color = item.get('color', '#FFFFFF')
+
+
+def replace_meetings(db, lecture_id, meetings):
+    db.query(models.LectureMeeting).filter(models.LectureMeeting.lecture_id == lecture_id).delete()
+
+    for meeting in meetings:
+        db.add(models.LectureMeeting(
+            lecture_id=lecture_id,
+            day=meeting['day'],
+            start_hour=meeting['startHour'],
+            start_minute=meeting.get('startMinute', 0),
+            end_hour=meeting['endHour'],
+            end_minute=meeting.get('endMinute', 0),
+        ))
+
+
+def remove_stale_lectures(db, valid_ids):
+    stale_lectures = db.query(models.Lecture).filter(~models.Lecture.id.in_(valid_ids)).all()
+
+    for lecture in stale_lectures:
+        db.query(models.Enrollment).filter(models.Enrollment.lecture_id == lecture.id).delete()
+        db.query(models.LectureMeeting).filter(models.LectureMeeting.lecture_id == lecture.id).delete()
+        db.delete(lecture)
+
+    return len(stale_lectures)
+
+
 def insert_lectures():
     db = SessionLocal()
     try:
-        # 1. JSON 파일 읽어오기
         with open('lectures.json', 'r', encoding='utf-8') as f:
             data = json.load(f)
 
-        print(f"🚀 총 {len(data)}개의 강의 데이터를 읽었습니다. DB 저장을 시작합니다...")
+        print(f"Read {len(data)} lecture records. Syncing database...")
+
+        valid_ids = {item['id'] for item in data}
+        removed_count = remove_stale_lectures(db, valid_ids)
 
         inserted_count = 0
+        updated_count = 0
         for item in data:
-            # 2. 중복 방지: 이미 DB에 있는 과목은 건너뜀
-            existing = db.query(models.Lecture).filter(models.Lecture.id == item['id']).first()
-            if existing:
-                continue
+            lecture = db.query(models.Lecture).filter(models.Lecture.id == item['id']).first()
+            if lecture:
+                updated_count += 1
+            else:
+                lecture = models.Lecture(id=item['id'])
+                db.add(lecture)
+                inserted_count += 1
 
-            # 3. 강의(Lecture) 뼈대 만들기
-            new_lecture = models.Lecture(
-                id=item['id'],
-                lecture_code=item['lectureCode'],
-                section_code=item['sectionCode'],
-                name=item['name'],
-                professor=item.get('professor', ''),
-                room=item.get('room', ''),
-                credit=item['credit'],
-                category=item['category'],
-                college=item.get('college', ''),
-                department=item.get('department', ''),
-                capacity=item.get('capacity', 40),
-                enrolled=item.get('enrolled', 0),
-                success_rate=item.get('successRate', 0),
-                color=item.get('color', '#FFFFFF')
-            )
-            db.add(new_lecture)
+            apply_lecture_fields(lecture, item)
+            replace_meetings(db, lecture.id, item.get('meetings', []))
 
-            # 4. 해당 강의의 수업 시간(Meetings) 1:N 연결
-            for meeting in item.get('meetings', []):
-                new_meeting = models.LectureMeeting(
-                    lecture_id=new_lecture.id,
-                    day=meeting['day'],
-                    start_hour=meeting['startHour'],
-                    start_minute=meeting.get('startMinute', 0),
-                    end_hour=meeting['endHour'],
-                    end_minute=meeting.get('endMinute', 0)
-                )
-                db.add(new_meeting)
-
-            inserted_count += 1
-
-        # 5. DB에 최종 반영(Commit)
         db.commit()
-        print(f"🎉 대성공! {inserted_count}개의 새로운 강의가 DB에 안전하게 보관되었습니다!")
+        print(f"Lecture sync complete: inserted {inserted_count}, updated {updated_count}, removed {removed_count}")
 
     except Exception as e:
         db.rollback()
-        print(f"❌ 에러 발생: {e}")
+        print(f"Lecture sync failed: {e}")
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     insert_lectures()

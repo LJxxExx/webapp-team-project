@@ -23,7 +23,6 @@ const TEST_USER = {
 
 const PAGES = ['main', 'grade', 'assignment', 'enroll', 'mypage']
 
-const ASSIGNMENT_STORAGE_KEY = 'assignment-dashboard-data'
 
 
 // 날짜를 YYYY-MM-DD 형태로 변환
@@ -131,23 +130,35 @@ export default function App() {
     }
   }, [isLoggedIn, user])
 
-  function fetchUserData(studentId) {
-    // 2. 시간표 조회
-    axios.get(`${API_BASE_URL}/api/users/${studentId}/timetable`)
-      .then(res => {
-        setSavedPlans(prev => ({
-          ...prev,
-          plan1: res.data
-        }))
-      })
-      .catch(err => console.error('시간표 로딩 실패:', err))
+  async function fetchUserData(studentId) {
+    if (!studentId) return
 
-    // 3. 과제 조회
-    axios.get(`${API_BASE_URL}/api/users/${studentId}/assignments`)
-      .then(res => {
-        setAssignments(normalizeAssignments(res.data))
-      })
-      .catch(err => console.error('과제 로딩 실패:', err))
+    const [timetableResult, assignmentsResult] = await Promise.allSettled([
+      axios.get(`${API_BASE_URL}/api/users/${studentId}/timetable`),
+      axios.get(`${API_BASE_URL}/api/users/${studentId}/assignments`),
+    ])
+
+    if (timetableResult.status === 'fulfilled') {
+      const res = timetableResult.value
+      setSavedPlans(prev => ({
+        ...prev,
+        plan1: res.data
+      }))
+    } else {
+      console.error('시간표 로딩 실패:', timetableResult.reason)
+    }
+
+    if (assignmentsResult.status === 'fulfilled') {
+      const res = assignmentsResult.value
+      setAssignments(normalizeAssignments(res.data))
+    } else {
+      console.error('과제 로딩 실패:', assignmentsResult.reason)
+    }
+  }
+
+  function refreshUserData() {
+    if (!user) return Promise.resolve()
+    return fetchUserData(user.id)
   }
 
   // Sidebar에서 과제를 클릭했을 때 AssignmentPage의 해당 날짜 상세 화면으로 이동시키기 위한 상태
@@ -157,9 +168,23 @@ export default function App() {
   const savedLectures = (() => {
     const entries = savedPlans[activePlan] || []
     const seen = new Set()
-    return entries
-      .map(entry => lectureCatalog.find(l => l.id === entry.lectureId))
-      .filter(l => l && !seen.has(l.id) && seen.add(l.id))
+
+    return entries.reduce((lectures, entry) => {
+      const lectureKey = entry.lectureId ?? `${entry.lectureCode}-${entry.sectionCode}`
+      if (!lectureKey || seen.has(String(lectureKey))) return lectures
+
+      const catalogLecture = lectureCatalog.find(lecture => String(lecture.id) === String(entry.lectureId))
+      const lecture = catalogLecture || {
+        id: lectureKey,
+        name: entry.name,
+        credit: entry.credit ?? 3,
+        professor: entry.professor,
+      }
+
+      seen.add(String(lectureKey))
+      lectures.push(lecture)
+      return lectures
+    }, [])
   })()
 
   function navigateTo(next) {
@@ -258,10 +283,12 @@ export default function App() {
             <Timetable
               isLoggedIn={isLoggedIn}
               user={user}
+              lectureCatalog={lectureCatalog}
               savedPlans={savedPlans}
               setSavedPlans={setSavedPlans}
               activePlan={activePlan}
               setActivePlan={setActivePlan}
+              onRefreshData={refreshUserData}
             />
             <AcademicSection enrolledCourses={savedLectures}/>
           </>
@@ -282,7 +309,7 @@ export default function App() {
           />
         )
       case 'enroll':
-        return <EnrollmentPage isLoggedIn={isLoggedIn} user={user} onRefreshData={() => fetchUserData(user.id)} />
+        return <EnrollmentPage isLoggedIn={isLoggedIn} lectureCatalog={lectureCatalog} savedPlans={savedPlans} activePlan={activePlan} />
       case 'mypage':
         return <MyPage isLoggedIn={isLoggedIn} user={user} onLogin={login} onLogout={logout} />
       default:
