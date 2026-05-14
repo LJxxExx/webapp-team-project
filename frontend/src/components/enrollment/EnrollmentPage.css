@@ -1,59 +1,3 @@
-/*.enroll-page {
-  position: relative;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 20px;
-}
-.enroll-page.blurred-section > *:not(.section-blur-overlay) {
-  filter: blur(5px);
-  pointer-events: none;
-}
-.enroll-sub { font-size: 13px; color: #888; margin-bottom: 16px; }
-.enroll-list { display: flex; flex-direction: column; gap: 10px; }
-.enroll-card {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 16px; border: 1px solid #e5e7eb; border-radius: 8px;
-  gap: 12px;
-}
-.enroll-card.enrolled { border-color: #3b82f6; background: #eff6ff; }
-.enroll-card.full { opacity: 0.6; }
-.enroll-info { display: flex; flex-direction: column; gap: 4px; flex: 1; }
-.enroll-name { font-size: 14px; font-weight: 500; }
-.enroll-meta { font-size: 12px; color: #888; }
-.enroll-quota-bar { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-.eq-track { flex: 1; height: 4px; background: #f3f4f6; border-radius: 99px; overflow: hidden; }
-.eq-fill { height: 100%; border-radius: 99px; transition: width 0.3s; }
-.eq-text { font-size: 11px; color: #888; white-space: nowrap; }
-.enroll-btn {
-  padding: 7px 16px; border-radius: 6px; font-size: 13px; font-weight: 600;
-  border: none; background: #2563eb; color: #fff; transition: background 0.15s;
-}
-.enroll-btn:hover:not(:disabled) { background: #1d4ed8; }
-.enroll-btn--cancel { background: #ef4444; }
-.enroll-btn--cancel:hover { background: #dc2626; }
-.enroll-btn--full { background: #9ca3af; cursor: not-allowed; }*/
-
-
-.kmu-enroll-container.blurred-section>*:not(.section-blur-overlay) {
-  filter: blur(5px) !important;
-  -webkit-filter: blur(5px) !important;
-  pointer-events: none !important;
-  user-select: none !important;
-}
-
-.kmu-enroll-container .section-blur-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
 .kmu-enroll-container {
   position: relative;
   width: 100%;
@@ -106,51 +50,69 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f4f4f4;
-  border: 1px solid #ccc;
-  padding: 10px;
-  margin: 20px 0;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  padding: 8px 0;
+  margin: 16px 0 22px;
+}
+
+.security-code-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 0 8px;
+  background: #d8d8d8;
 }
 
 .security-box {
   display: flex;
-  border: 1px solid #888;
-  margin-right: 10px;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  margin-right: 0;
 }
 
 .code-digit {
-  width: 28px;
-  height: 32px;
+  width: 20px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  background: transparent;
+  font-size: 18px;
   font-weight: bold;
   font-family: 'Courier New';
 }
 
 .bg-green {
-  background: #9bb796;
+  background: transparent;
   color: #8a2a2a;
 }
 
 .bg-gray {
-  background: #cccccc;
+  background: transparent;
   color: #226622;
 }
 
 .security-field {
-  width: 50px;
-  height: 30px;
-  border: 1px solid #999;
+  width: 52px;
+  height: 22px;
+  border: 1px solid #9aa6b2;
+  background: #fff;
   text-align: center;
-  font-size: 18px;
-  margin-right: 15px;
+  font-size: 14px;
+  margin-right: 0;
 }
 
 .security-text {
   color: #d00000;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: bold;
 }
 
@@ -162,6 +124,26 @@
   border: 1px solid #99b4d1;
   padding: 6px 12px;
   margin-bottom: 10px;
+}
+
+.direct-inputs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sep {
+  color: #555;
+  font-size: 11px;
+}
+
+.direct-msg {
+  margin-left: 4px;
+  color: #5f493d;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .input-5 {
@@ -189,11 +171,16 @@
 }
 
 .btn-small {
-  background: #fcfcfc;
-  border: 1px solid #bbb;
+  background: #e5e5e5;
+  border: 1px solid #a7a7a7;
+  color: #222;
   padding: 3px 10px;
   cursor: pointer;
   font-size: 11px;
+}
+
+.btn-small:hover {
+  background: #d7d7d7;
 }
 
 .btn-del {

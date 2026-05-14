@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
+import LoginRequiredSection from '../common/LoginRequiredSection'
 import './GradeCalculator.css'
-import { gradeCoursesData } from '../../data'
 
 const GRADE_TABLE = [
   { grade: 'A+', gpa: 4.5, minScore: 95 },
@@ -46,7 +46,7 @@ function calcRisk(course) {
   return { attRate, hwRate, risk, level, grade: gradeInfo.grade, gpa: gradeInfo.gpa, approxScore }
 }
 
-// lectureCatalog 강의를 gradeCoursesData 포맷으로 변환
+// 시간표 강의를 학점 계산기 포맷으로 변환
 function lectureToGradeCourse(lecture, index) {
   return {
     id: `timetable-${lecture.id}`,
@@ -59,12 +59,12 @@ function lectureToGradeCourse(lecture, index) {
 }
 
 export default function GradeCalculator({ isLoggedIn, savedLectures }) {
-  // savedLectures가 있으면 시간표 기반 강의 목록 사용, 없으면 기본 데이터 사용
+  // 시간표 기반 강의만 사용하고, 빈 시간표일 때 더미데이터로 돌아가지 않습니다.
   const baseCourses = useMemo(() => {
     if (savedLectures && savedLectures.length > 0) {
       return savedLectures.map(lectureToGradeCourse)
     }
-    return gradeCoursesData
+    return []
   }, [savedLectures])
 
   const [stats, setStats] = useState({})
@@ -86,24 +86,22 @@ export default function GradeCalculator({ isLoggedIn, savedLectures }) {
   }))
 
   const selected = courses.find(c => c.id === effectiveSelectedId) ?? courses[0]
-  const { attRate, hwRate, risk, level, grade, gpa, approxScore } = calcRisk(selected)
-
-  function updateStat(key, val) {
-    setStats(prev => ({ ...prev, [effectiveSelectedId]: { ...(prev[effectiveSelectedId] ?? { absent: 0, hwMiss: 0, exam: null }), [key]: val } }))
-  }
 
   if (!selected) {
     return (
-      <div className={'grade-calc' + (!isLoggedIn ? ' gc-blurred' : '')}>
-        {!isLoggedIn && (
-          <div className="gc-blur-overlay"><span className="blur-label">'로그인이 필요합니다'</span></div>
-        )}
+      <LoginRequiredSection isLoggedIn={isLoggedIn} className="grade-calc">
         <div style={{ padding: '2rem', textAlign: 'center', color: '#888' }}>
           <p>시간표에 저장된 강의가 없습니다.</p>
           <p>메인 페이지에서 시간표를 저장하면 강의 목록이 표시됩니다.</p>
         </div>
-      </div>
+      </LoginRequiredSection>
     )
+  }
+
+  const { attRate, hwRate, risk, grade, gpa, approxScore } = calcRisk(selected)
+
+  function updateStat(key, val) {
+    setStats(prev => ({ ...prev, [effectiveSelectedId]: { ...(prev[effectiveSelectedId] ?? { absent: 0, hwMiss: 0, exam: null }), [key]: val } }))
   }
 
   const dangerCount = courses.filter(c => calcRisk(c).level === 'danger').length
@@ -111,11 +109,7 @@ export default function GradeCalculator({ isLoggedIn, savedLectures }) {
   const totalCredits = courses.reduce((s, c) => s + c.credit, 0)
 
   return (
-    <div className={'grade-calc' + (!isLoggedIn ? ' gc-blurred' : '')}>
-      {!isLoggedIn && (
-        <div className="gc-blur-overlay"><span className="blur-label">'로그인이 필요합니다'</span></div>
-      )}
-
+    <LoginRequiredSection isLoggedIn={isLoggedIn} className="grade-calc">
       {/* 요약 */}
       <div className="gc-summary">
         {[
@@ -234,6 +228,6 @@ export default function GradeCalculator({ isLoggedIn, savedLectures }) {
           </div>
         </div>
       </div>
-    </div>
+    </LoginRequiredSection>
   )
 }
