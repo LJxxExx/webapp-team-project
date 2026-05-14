@@ -267,7 +267,7 @@ export default function App() {
           </>
         )
       case 'grade':
-        return <GradeCalculator isLoggedIn={isLoggedIn} savedLectures={savedLectures} />
+        return <GradeCalculator isLoggedIn={isLoggedIn} savedLectures={savedLectures} assignments={assignments} />
       case 'assignment':
         return (
           <AssignmentPage
