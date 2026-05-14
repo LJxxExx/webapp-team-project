@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react'
+import LoginRequiredSection from '../common/LoginRequiredSection'
 import './GradeCalculator.css'
 
 const GRADE_TABLE = [
@@ -111,15 +112,12 @@ export default function GradeCalculator({ isLoggedIn, savedLectures, assignments
 
   if (!selected) {
     return (
-      <div className={'grade-calc' + (!isLoggedIn ? ' gc-blurred' : '')}>
-        {!isLoggedIn && (
-          <div className="gc-blur-overlay"><span className="blur-label">'로그인이 필요합니다'</span></div>
-        )}
+      <LoginRequiredSection isLoggedIn={isLoggedIn} className="grade-calc">
         <div style={{ padding: '2rem', textAlign: 'center', color: '#888' }}>
           <p>시간표에 저장된 강의가 없습니다.</p>
           <p>메인 페이지 시간표에서 강의를 추가하면 이곳에 표시됩니다.</p>
         </div>
-      </div>
+      </LoginRequiredSection>
     )
   }
 
@@ -130,11 +128,7 @@ export default function GradeCalculator({ isLoggedIn, savedLectures, assignments
   const totalCredits = courses.reduce((s, c) => s + c.credit, 0)
 
   return (
-    <div className={'grade-calc' + (!isLoggedIn ? ' gc-blurred' : '')}>
-      {!isLoggedIn && (
-        <div className="gc-blur-overlay"><span className="blur-label">'로그인이 필요합니다'</span></div>
-      )}
-
+    <LoginRequiredSection isLoggedIn={isLoggedIn} className="grade-calc">
       {/* 요약 */}
       <div className="gc-summary">
         {[
@@ -274,6 +268,6 @@ export default function GradeCalculator({ isLoggedIn, savedLectures, assignments
           </div>
         </div>
       </div>
-    </div>
+    </LoginRequiredSection>
   )
 }

@@ -77,6 +77,23 @@
 }
 .btn-secondary:hover:not(:disabled) { background: #f3f4f6; }
 .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+.timetable-header-row .btn-secondary {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 8px 16px rgba(37, 99, 235, 0.18);
+}
+.timetable-header-row .btn-secondary:hover:not(:disabled) {
+  border-color: #1d4ed8;
+  background: #1d4ed8;
+}
+.timetable-header-row .btn-secondary:disabled {
+  border-color: #d1d5db;
+  background: #e5e7eb;
+  color: #6b7280;
+  box-shadow: none;
+}
 
 /* 테이블 */
 .timetable-container {
@@ -86,11 +103,6 @@
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
   transition: filter 0.3s;
-}
-.timetable-container.timetable-blurred {
-  filter: blur(6px);
-  user-select: none;
-  pointer-events: none;
 }
 .timetable {
   width: 100%;
@@ -209,24 +221,6 @@
   }
 }
 
-/* 블러 오버레이 */
-.timetable-blur-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-.blur-label {
-  font-size: 15px;
-  font-weight: 700;
-  color: #111;
-  background: rgba(255,255,255,0.7);
-  padding: 8px 20px;
-  border-radius: 8px;
-}
-
 /* 시간표 생성 */
 .timetable-setting-panel {
   width: min(980px, calc(100vw - 48px));
@@ -291,6 +285,17 @@
 }
 .recommend-row button:hover,
 .clear-selected-btn:hover:not(:disabled) { background: #f3f4f6; }
+.recommend-row button.active {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+.recommend-row button.active:hover {
+  background: #1d4ed8;
+}
 .clear-selected-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -308,6 +313,11 @@
   border-radius: 8px;
   padding: 12px;
   background: #fff;
+}
+.selected-lecture-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 520px;
 }
 .lecture-search-header {
   display: flex;
@@ -358,6 +368,9 @@
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
+.major-filter-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
 .lecture-filter-grid label {
   display: grid;
   gap: 5px;
@@ -391,6 +404,12 @@
   margin-top: 10px;
   max-height: 360px;
   overflow-y: auto;
+}
+.selected-lecture-list {
+  flex: 1;
+  align-content: start;
+  max-height: none;
+  min-height: 0;
 }
 .lecture-result-item {
   width: 100%;
