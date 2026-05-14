@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react'
-import LoginRequiredSection from '../common/LoginRequiredSection'
 import './AssignmentPage.css'
 
 const defaultChecklist = [
@@ -366,7 +365,13 @@ export default function AssignmentPage({
   const upcomingCompletionRate = getUpcomingCompletionRate(assignments)
 
   return (
-    <LoginRequiredSection isLoggedIn={isLoggedIn} className="assign-page">
+    <div className={'assign-page' + (!isLoggedIn ? ' blurred-section' : '')}>
+      {!isLoggedIn && (
+        <div className="section-blur-overlay">
+          <span className="blur-label">'로그인이 필요합니다'</span>
+        </div>
+      )}
+
       {pageMode === 'calendar' && (
         <div className="ap-wrap">
           <div className="ap-header">
@@ -782,6 +787,6 @@ export default function AssignmentPage({
           </div>
         </div>
       )}
-    </LoginRequiredSection>
+    </div>
   )
 }

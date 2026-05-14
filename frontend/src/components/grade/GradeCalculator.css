@@ -3,14 +3,27 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  width: 100%;
-  background: #fff;
-  border: 1px solid #d9dee7;
-  border-radius: 10px;
-  padding: 20px;
-  overflow: hidden;
-  box-sizing: border-box;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+.grade-calc.gc-blurred > *:not(.gc-blur-overlay) {
+  filter: blur(5px);
+  pointer-events: none;
+  user-select: none;
+}
+.gc-blur-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.blur-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111;
+  background: rgba(255,255,255,0.8);
+  padding: 10px 24px;
+  border-radius: 8px;
 }
 
 /* 요약 카드 */
@@ -36,22 +49,11 @@
 /* 본문 레이아웃 */
 .gc-content {
   display: grid;
-  grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
-  gap: 16px;
-  min-width: 0;
+  grid-template-columns: 300px 1fr;
+  gap: 14px;
 }
-.gc-list-col {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-  background: #f5f7fa;
-  border: 1px solid #dde3ea;
-  border-radius: 10px;
-  padding: 14px;
-  overflow: visible;
-}
-.gc-col-label { font-size: 11px; color: #888; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 4px; }
+.gc-list-col { display: flex; flex-direction: column; gap: 8px; }
+.gc-col-label { font-size: 11px; color: #888; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
 
 /* 강의 카드 */
 .gc-course-card {
@@ -60,17 +62,10 @@
   border-radius: 10px;
   padding: 12px 14px;
   cursor: pointer;
-  outline: 2px solid transparent;
-  outline-offset: -2px;
-  transition: border-color 0.15s, outline-color 0.15s;
+  transition: border-color 0.15s;
 }
 .gc-course-card:hover { border-color: #9ca3af; }
-.gc-course-card.selected {
-  background: #fff;
-  border-color: #1a1a1a;
-  outline-color: #1a1a1a;
-  box-shadow: none;
-}
+.gc-course-card.selected { border-color: #1a1a1a; box-shadow: 0 0 0 1px #1a1a1a; }
 .gcc-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
 .gcc-name { font-size: 13px; font-weight: 500; }
 .gcc-credit { font-size: 11px; color: #aaa; }

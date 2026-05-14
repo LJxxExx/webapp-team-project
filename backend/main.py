@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -22,7 +21,6 @@ async def lifespan(app: FastAPI):
         try:
             # DB 연결을 가장 먼저 시도하는 부분 (테이블 생성)
             models.Base.metadata.create_all(bind=engine)
-            ensure_lecture_schema()
             print("✅ DB 연결 및 테이블 뼈대 생성 성공!")
             break  # 성공하면 반복문 탈출
         except OperationalError:
@@ -53,32 +51,6 @@ app.add_middleware(
 )
 
 # 3. DB 세션 공급 함수
-
-def ensure_lecture_schema():
-    columns = [
-        ('liberal_type', 'VARCHAR(50)'),
-        ('liberal_area', 'VARCHAR(100)'),
-        ('college_code', 'VARCHAR(20)'),
-        ('major_name', 'VARCHAR(100)'),
-        ('major_code', 'VARCHAR(20)'),
-        ('division_name', 'VARCHAR(100)'),
-        ('division_code', 'VARCHAR(20)'),
-        ('course_type', 'VARCHAR(50)'),
-        ('target_grade', 'INT'),
-        ('target_audience', 'VARCHAR(100)'),
-        ('note', 'VARCHAR(100)'),
-    ]
-
-    with engine.begin() as connection:
-        for column_name, column_type in columns:
-            try:
-                connection.execute(text(f"ALTER TABLE lectures ADD COLUMN {column_name} {column_type}"))
-                print(f"강의 테이블 컬럼 추가: {column_name}")
-            except Exception as exc:
-                message = str(exc).lower()
-                if 'duplicate' not in message and 'already exists' not in message:
-                    raise
-
 def get_db():
     db = SessionLocal()
     try:
@@ -102,49 +74,6 @@ class AssignmentUpdate(BaseModel):
 class EnrollmentCreate(BaseModel):
     lecture_id: str
 
-
-def resolve_lecture(db: Session, lecture_identifier: str):
-    value = (lecture_identifier or '').strip()
-    if not value:
-        return None
-
-    lecture = db.query(models.Lecture).filter(models.Lecture.id == value).first()
-    if lecture:
-        return lecture
-
-    if '-' in value:
-        lecture_code, section_code = value.split('-', 1)
-        return db.query(models.Lecture).filter(
-            models.Lecture.lecture_code == lecture_code,
-            models.Lecture.section_code == section_code
-        ).first()
-
-    return None
-
-
-def meeting_start(meeting):
-    return meeting.start_hour * 60 + (meeting.start_minute or 0)
-
-
-def meeting_end(meeting):
-    return meeting.end_hour * 60 + (meeting.end_minute or 0)
-
-
-def find_time_conflict(user, new_lecture):
-    for enrollment in user.enrollments:
-        current_lecture = enrollment.lecture
-        if not current_lecture or current_lecture.id == new_lecture.id:
-            continue
-
-        for new_meeting in new_lecture.meetings:
-            for current_meeting in current_lecture.meetings:
-                if new_meeting.day != current_meeting.day:
-                    continue
-                if meeting_start(new_meeting) < meeting_end(current_meeting) and meeting_end(new_meeting) > meeting_start(current_meeting):
-                    return current_lecture
-
-    return None
-
 # ---------------------------------------------------------
 # 🚀 4. 전체 강의 목록 조회 API
 # ---------------------------------------------------------
@@ -163,18 +92,7 @@ def get_all_lectures(db: Session = Depends(get_db)):
             "credit": lecture.credit,
             "category": lecture.category,
             "college": lecture.college,
-            "collegeCode": lecture.college_code,
-            "divisionCode": lecture.division_code,
-            "divisionName": lecture.division_name,
-            "majorCode": lecture.major_code,
-            "majorName": lecture.major_name,
             "department": lecture.department,
-            "liberalType": lecture.liberal_type,
-            "liberalArea": lecture.liberal_area,
-            "courseType": lecture.course_type,
-            "targetGrade": lecture.target_grade,
-            "targetAudience": lecture.target_audience,
-            "note": lecture.note,
             "capacity": lecture.capacity,
             "enrolled": lecture.enrolled,
             "successRate": lecture.success_rate,
@@ -213,10 +131,6 @@ def get_user_timetable(student_id: str, db: Session = Depends(get_db)):
                 "lectureCode": lecture.lecture_code,
                 "sectionCode": lecture.section_code,
                 "credit": lecture.credit,
-                "courseType": lecture.course_type,
-                "targetGrade": lecture.target_grade,
-                "targetAudience": lecture.target_audience,
-                "note": lecture.note,
                 "color": lecture.color,
                 "day": meeting.day,
                 "startHour": meeting.start_hour,
@@ -232,47 +146,36 @@ def enroll_lecture(student_id: str, enrollment_data: EnrollmentCreate, db: Sessi
     user = db.query(models.User).filter(models.User.student_id == student_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="학생을 찾을 수 없습니다.")
-
-    lecture = resolve_lecture(db, enrollment_data.lecture_id)
-    if not lecture:
-        raise HTTPException(status_code=404, detail="해당 강의를 찾을 수 없습니다.")
-
+    
+    # 이미 수강 중인지 확인
     existing = db.query(models.Enrollment).filter(
         models.Enrollment.user_id == user.id,
-        models.Enrollment.lecture_id == lecture.id
+        models.Enrollment.lecture_id == enrollment_data.lecture_id
     ).first()
     if existing:
-        raise HTTPException(status_code=409, detail="이미 수강신청한 강의입니다.")
+        return {"detail": "이미 수강 중인 강의입니다."}
 
-    conflicting_lecture = find_time_conflict(user, lecture)
-    if conflicting_lecture:
-        raise HTTPException(status_code=409, detail=f"{conflicting_lecture.name} 강의와 시간이 겹칩니다.")
-
-    new_enrollment = models.Enrollment(user_id=user.id, lecture_id=lecture.id)
+    new_enrollment = models.Enrollment(user_id=user.id, lecture_id=enrollment_data.lecture_id)
     db.add(new_enrollment)
     db.commit()
-    return {"detail": "수강신청 완료", "lectureId": lecture.id}
+    return {"detail": "수강신청 완료"}
 
 @app.delete("/api/users/{student_id}/enrollments/{lecture_id}")
 def drop_lecture(student_id: str, lecture_id: str, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.student_id == student_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="학생을 찾을 수 없습니다.")
-
-    lecture = resolve_lecture(db, lecture_id)
-    if not lecture:
-        raise HTTPException(status_code=404, detail="해당 강의를 찾을 수 없습니다.")
-
+    
     enrollment = db.query(models.Enrollment).filter(
         models.Enrollment.user_id == user.id,
-        models.Enrollment.lecture_id == lecture.id
+        models.Enrollment.lecture_id == lecture_id
     ).first()
     if not enrollment:
         raise HTTPException(status_code=404, detail="수강 내역을 찾을 수 없습니다.")
-
+    
     db.delete(enrollment)
     db.commit()
-    return {"detail": "수강 취소 완료", "lectureId": lecture.id}
+    return {"detail": "수강 취소 완료"}
 
 # ---------------------------------------------------------
 # 🚀 6. 학번(student_id) 기반 과제 API (CRUD)
