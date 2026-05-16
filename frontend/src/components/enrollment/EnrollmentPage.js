@@ -15,6 +15,7 @@ function formatRoom(room) {
         .replace(/^영암관\s*/, '영')
         .replace(/^백은관\s*/, '백')
         .replace(/^쉐턱관\s*/, '쉐')
+        .replace(/^오산관\s*/, '오')
         .replace(/^덕래관\s*/, '덕')
         .replace(/^스미스관\s*/, '스')
         .replace(/^동천관\s*/, '동')
