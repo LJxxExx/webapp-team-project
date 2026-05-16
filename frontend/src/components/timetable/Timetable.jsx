@@ -21,6 +21,14 @@ const TIMETABLE_COLORS = [
   '#E5C7B7',
   '#C9D6E8',
 ]
+const RECOMMEND_TARGET_CREDITS = 15
+const RECOMMEND_MAX_LECTURES = 5
+const PREFERRED_TIME_OPTIONS = [
+  { key: '전체', label: '전체', start: TIMETABLE_START, end: TIMETABLE_END },
+  { key: '오전', label: '오전', start: 9 * 60, end: 12 * 60 },
+  { key: '오후', label: '오후', start: 12 * 60, end: 16 * 60 },
+  { key: '16시 이후', label: '16시 이후', start: 16 * 60, end: TIMETABLE_END },
+]
 const COLLEGE_ORDER = [
   '인문국제학대학',
   '사범대학',
@@ -233,6 +241,38 @@ function formatMeetings(meetings) {
     .join(' / ')
 }
 
+function hasLectureMeetings(lecture) {
+  return Array.isArray(lecture.meetings) && lecture.meetings.length > 0
+}
+
+function getPreferredTimeOption(key) {
+  return PREFERRED_TIME_OPTIONS.find(option => option.key === key) || PREFERRED_TIME_OPTIONS[0]
+}
+
+function fitsFreeDays(lecture, freeDays) {
+  if (freeDays.length === 0) return true
+  return lecture.meetings.every(meeting => !freeDays.includes(meeting.day))
+}
+
+function fitsPreferredTime(lecture, preferredTime) {
+  const timeOption = getPreferredTimeOption(preferredTime)
+  if (timeOption.key === '전체') return true
+
+  return lecture.meetings.every(meeting => {
+    const start = toMinutes(meeting, 'start')
+    const end = toMinutes(meeting, 'end')
+    return start >= timeOption.start && end <= timeOption.end
+  })
+}
+
+function getRecommendationScore(lecture) {
+  const courseType = lecture.courseType || ''
+  const targetGrade = Number(lecture.targetGrade || 9)
+  const requiredBonus = courseType.includes('필수') ? -30 : 0
+
+  return requiredBonus + targetGrade
+}
+
 function getCourseStyle(course) {
   const start = Math.max(toMinutes(course, 'start'), TIMETABLE_START)
   const end = Math.min(toMinutes(course, 'end'), TIMETABLE_END)
@@ -273,6 +313,9 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
   const [toastMessage, setToastMessage] = useState('')
+  const [requiredLectureIds, setRequiredLectureIds] = useState([])
+  const [freeDays, setFreeDays] = useState([])
+  const [preferredTime, setPreferredTime] = useState('전체')
 
   function showMessage(text, type = 'success') {
     setMessage(text)
@@ -309,6 +352,16 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
         color: colorMap.get(lecture.id) || TIMETABLE_COLORS[0],
       }))
   }, [courses, lectureCatalog, selectedLectureIds])
+
+  const requiredLectureIdSet = useMemo(
+    () => new Set(requiredLectureIds),
+    [requiredLectureIds]
+  )
+
+  const requiredLectures = useMemo(
+    () => lectureCatalog.filter(lecture => requiredLectureIdSet.has(lecture.id)),
+    [lectureCatalog, requiredLectureIdSet]
+  )
 
   const colleges = useMemo(() => {
     const collegeMap = new Map()
@@ -399,6 +452,11 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     })
   }, [lectureCatalog, lectureType, searchText, selectedCollege, selectedDivision, selectedMajor, selectedLiberalArea, selectedLiberalType])
 
+  const requiredLectureOptions = useMemo(
+    () => filteredLectures.filter(hasLectureMeetings),
+    [filteredLectures]
+  )
+
   function changeLectureType(nextType) {
     setLectureType(nextType)
     setSearchText('')
@@ -419,6 +477,22 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
   function changeLiberalType(nextType) {
     setSelectedLiberalType(nextType)
     setSelectedLiberalArea('전체')
+  }
+
+  function toggleRequiredLecture(lectureId) {
+    setRequiredLectureIds(prev =>
+      prev.includes(lectureId)
+        ? prev.filter(id => id !== lectureId)
+        : [...prev, lectureId]
+    )
+  }
+
+  function toggleFreeDay(day) {
+    setFreeDays(prev =>
+      prev.includes(day)
+        ? prev.filter(selectedDay => selectedDay !== day)
+        : [...prev, day]
+    )
   }
 
   function hasConflict(newEntries, targetCourses = courses) {
@@ -471,6 +545,110 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     updateActivePlan(prev => prev.filter(course => !deletingIds.has(course.lectureId)))
     showMessage('추가한 강의를 모두 삭제했습니다.')
   }
+
+  function openSettingPanel() {
+    setSearchText('')
+    showMessage('')
+    setIsSettingOpen(true)
+  }
+
+  function closeSettingPanel() {
+    setSearchText('')
+    showMessage('')
+    setIsSettingOpen(false)
+  }
+
+  function toggleSettingPanel() {
+    if (isSettingOpen) {
+      closeSettingPanel()
+      return
+    }
+
+    openSettingPanel()
+  }
+
+  function generateRecommendedPlan() {
+    const requiredWithoutMeetings = requiredLectures.find(lecture => !hasLectureMeetings(lecture))
+    if (requiredWithoutMeetings) {
+      showMessage(`${requiredWithoutMeetings.name} 강의 시간이 없어 추천 시간표에 넣을 수 없습니다.`, 'error')
+      return
+    }
+
+    const requiredOffDayLecture = requiredLectures.find(lecture => !fitsFreeDays(lecture, freeDays))
+    if (requiredOffDayLecture) {
+      showMessage(`${requiredOffDayLecture.name}이 선택한 공강 요일에 포함되어 있습니다.`, 'error')
+      return
+    }
+
+    const requiredTimeLecture = requiredLectures.find(lecture => !fitsPreferredTime(lecture, preferredTime))
+    if (requiredTimeLecture) {
+      showMessage(`${requiredTimeLecture.name}이 선택한 선호 시간대 밖에 있습니다.`, 'error')
+      return
+    }
+
+    let nextCourses = []
+    const nextLectures = []
+    const selectedNames = new Set()
+
+    const tryAddLecture = lecture => {
+      if (!hasLectureMeetings(lecture) || selectedNames.has(lecture.name)) return false
+
+      const lectureColor = pickCourseColor(nextCourses)
+      const newEntries = localCreateTimetableEntries([lecture], new Map([[lecture.id, lectureColor]]))
+      if (hasConflict(newEntries, nextCourses)) return false
+
+      nextCourses = [...nextCourses, ...newEntries]
+      nextLectures.push(lecture)
+      selectedNames.add(lecture.name)
+      return true
+    }
+
+    const sortedRequiredLectures = [...requiredLectures].sort((a, b) =>
+      a.name.localeCompare(b.name, 'ko') || a.lectureCode.localeCompare(b.lectureCode, 'ko')
+    )
+
+    for (const lecture of sortedRequiredLectures) {
+      if (!tryAddLecture(lecture)) {
+        showMessage(`필수 과목끼리 시간이 겹치거나 같은 과목 분반이 중복됩니다: ${lecture.name}`, 'error')
+        return
+      }
+    }
+
+    const recommendationCandidates = filteredLectures
+      .filter(lecture =>
+        !requiredLectureIdSet.has(lecture.id) &&
+        hasLectureMeetings(lecture) &&
+        fitsFreeDays(lecture, freeDays) &&
+        fitsPreferredTime(lecture, preferredTime)
+      )
+      .sort((a, b) =>
+        getRecommendationScore(a) - getRecommendationScore(b) ||
+        String(a.lectureCode).localeCompare(String(b.lectureCode), 'ko') ||
+        a.name.localeCompare(b.name, 'ko')
+      )
+
+    for (const lecture of recommendationCandidates) {
+      const totalCredits = nextLectures.reduce((sum, selectedLecture) => sum + Number(selectedLecture.credit || 0), 0)
+      if (nextLectures.length >= RECOMMEND_MAX_LECTURES || totalCredits >= RECOMMEND_TARGET_CREDITS) break
+      tryAddLecture(lecture)
+    }
+
+    if (nextLectures.length === 0) {
+      showMessage('선택한 조건에 맞는 추천 강의가 없습니다.', 'error')
+      return
+    }
+
+    const recommendedCredits = nextLectures.reduce((sum, lecture) => sum + Number(lecture.credit || 0), 0)
+    setActivePlan('plan1')
+    setCourses(nextCourses)
+    setSavedPlans(prevPlans => ({
+      ...prevPlans,
+      plan1: nextCourses,
+    }))
+    setToastMessage('조건에 맞는 1안을 생성했습니다.')
+    showMessage(`조건에 맞는 1안을 생성했습니다. (${nextLectures.length}과목, ${recommendedCredits}학점)`)
+  }
+
   function openSavedPlan(planKey) {
     const planLabel = planKey === 'plan1' ? '1안' : '2안'
     setActivePlan(planKey)
@@ -481,9 +659,8 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
 
   function saveTimetable() {
     // 추가/삭제는 현재 1안/2안 state에 이미 반영되어 있으므로 여기서는 팝업만 닫음
-    setIsSettingOpen(false)
+    closeSettingPanel()
     setToastMessage(`${activePlan === 'plan1' ? '1안' : '2안'}이 저장되었습니다.`)
-    showMessage('')
   }
 
   return (
@@ -513,7 +690,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
         <button
           className="btn-secondary"
           disabled={!isLoggedIn}
-          onClick={() => setIsSettingOpen(prev => !prev)}
+          onClick={toggleSettingPanel}
         >
           시간표 생성
         </button>
@@ -568,7 +745,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
                 <h3>시간표 생성</h3>
                 <p>{activePlan === 'plan1' ? '1안' : '2안'} 시간표 편집</p>
               </div>
-              <button className="btn-text" onClick={() => setIsSettingOpen(false)}>닫기</button>
+              <button className="btn-text" onClick={closeSettingPanel}>닫기</button>
             </div>
 
             <div className="recommend-row">
@@ -576,6 +753,89 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
               <button type="button" className={activePlan === 'plan2' ? 'active' : ''} aria-pressed={activePlan === 'plan2'} onClick={() => openSavedPlan('plan2')}>2안</button>
               {/* <button type="button" onClick={() => loadPlan(DEFAULT_PLAN_IDS, '기본 시간표')}>초기화</button> */}
             </div>
+
+            <section className="auto-recommend-section">
+              <div className="lecture-search-header">
+                <div>
+                  <h4>추천 조건</h4>
+                  <span>선택한 조건으로 1안을 자동 생성합니다.</span>
+                </div>
+                <button type="button" className="btn-primary" onClick={generateRecommendedPlan}>
+                  1안 자동 생성
+                </button>
+              </div>
+
+              <div className="recommend-condition-grid">
+                <div className="recommend-condition-card required-course-card">
+                  <strong>필수 과목 선택</strong>
+                  <span>현재 검색 결과에서 필수로 넣을 과목을 체크하세요.</span>
+                  <div className="required-course-list">
+                    {requiredLectureOptions.length === 0 ? (
+                      <p>선택할 수 있는 강의가 없습니다.</p>
+                    ) : (
+                      requiredLectureOptions.map(lecture => (
+                        <label key={lecture.id} className="required-course-option">
+                          <input
+                            type="checkbox"
+                            checked={requiredLectureIdSet.has(lecture.id)}
+                            onChange={() => toggleRequiredLecture(lecture.id)}
+                          />
+                          <span>
+                            <strong>{lecture.name}</strong>
+                            <small>{lecture.lectureCode}-{lecture.sectionCode} · {lecture.professor}</small>
+                          </span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                  {requiredLectures.length > 0 && (
+                    <div className="required-selected-list">
+                      {requiredLectures.map(lecture => (
+                        <button key={lecture.id} type="button" onClick={() => toggleRequiredLecture(lecture.id)}>
+                          {lecture.name} ×
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="recommend-condition-card">
+                  <strong>공강 요일</strong>
+                  <span>수업을 넣지 않을 요일을 선택하세요.</span>
+                  <div className="condition-button-row">
+                    {DAYS.map(day => (
+                      <button
+                        key={day}
+                        type="button"
+                        className={freeDays.includes(day) ? 'active' : ''}
+                        aria-pressed={freeDays.includes(day)}
+                        onClick={() => toggleFreeDay(day)}
+                      >
+                        {day}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="recommend-condition-card">
+                  <strong>선호 시간대</strong>
+                  <span>해당 시간대 안에 있는 강의만 추천합니다.</span>
+                  <div className="condition-button-row">
+                    {PREFERRED_TIME_OPTIONS.map(option => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        className={preferredTime === option.key ? 'active' : ''}
+                        aria-pressed={preferredTime === option.key}
+                        onClick={() => setPreferredTime(option.key)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
 
             <div className="lecture-manager">
               <section className="lecture-search-section">
