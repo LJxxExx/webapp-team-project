@@ -21,13 +21,14 @@ const TIMETABLE_COLORS = [
   '#E5C7B7',
   '#C9D6E8',
 ]
-const RECOMMEND_TARGET_CREDITS = 15
-const RECOMMEND_MAX_LECTURES = 5
+const RECOMMEND_TARGET_CREDITS = 18
+const RECOMMEND_MAX_LECTURES = 8
+const DEFAULT_PREFERRED_TIME_RANGE = { start: '9:00', end: '19:00' }
 const PREFERRED_TIME_OPTIONS = [
-  { key: '전체', label: '전체', start: TIMETABLE_START, end: TIMETABLE_END },
-  { key: '오전', label: '오전', start: 9 * 60, end: 12 * 60 },
-  { key: '오후', label: '오후', start: 12 * 60, end: 16 * 60 },
-  { key: '16시 이후', label: '16시 이후', start: 16 * 60, end: TIMETABLE_END },
+  { key: '전체', label: '전체', start: '9:00', end: '19:00' },
+  { key: '오전', label: '오전', start: '9:00', end: '12:00' },
+  { key: '오후', label: '오후', start: '12:00', end: '16:00' },
+  { key: '16시 이후', label: '16시 이후', start: '16:00', end: '19:00' },
 ]
 const COLLEGE_ORDER = [
   '인문국제학대학',
@@ -49,6 +50,13 @@ const COLLEGE_ORDER = [
 const COLLEGE_ORDER_MAP = new Map(COLLEGE_ORDER.map((college, index) => [college, index]))
 
 const ALL_OPTION = '전체'
+const GRADE_OPTIONS = [
+  { value: ALL_OPTION, label: '전체' },
+  { value: '1', label: '1학년' },
+  { value: '2', label: '2학년' },
+  { value: '3', label: '3학년' },
+  { value: '4', label: '4학년' },
+]
 const ENGINEERING_COLLEGE = '공과대학'
 const ENGINEERING_DIVISION_ORDER = [
   '건축토목공학부',
@@ -254,15 +262,48 @@ function fitsFreeDays(lecture, freeDays) {
   return lecture.meetings.every(meeting => !freeDays.includes(meeting.day))
 }
 
-function fitsPreferredTime(lecture, preferredTime) {
-  const timeOption = getPreferredTimeOption(preferredTime)
-  if (timeOption.key === '전체') return true
+function clockToMinutes(time, fallback = TIMETABLE_START) {
+  const [hour, minute] = String(time || '').split(':').map(Number)
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return fallback
+
+  return hour * 60 + minute
+}
+
+function isValidTimeValue(time) {
+  if (!/^\d{1,2}:\d{2}$/.test(String(time || ''))) return false
+
+  const [hour, minute] = String(time).split(':').map(Number)
+  return hour >= 0 && hour <= 23 && minute >= 0 && minute < 60
+}
+
+function isValidPreferredTimeRange(timeRange) {
+  if (!isValidTimeValue(timeRange.start) || !isValidTimeValue(timeRange.end)) return false
+
+  return clockToMinutes(timeRange.start) < clockToMinutes(timeRange.end)
+}
+
+function fitsPreferredTime(lecture, preferredTimeRange) {
+  const preferredStart = clockToMinutes(preferredTimeRange.start, TIMETABLE_START)
+  const preferredEnd = clockToMinutes(preferredTimeRange.end, TIMETABLE_END)
 
   return lecture.meetings.every(meeting => {
     const start = toMinutes(meeting, 'start')
     const end = toMinutes(meeting, 'end')
-    return start >= timeOption.start && end <= timeOption.end
+    return start >= preferredStart && end <= preferredEnd
   })
+}
+
+function fitsPreferredGrade(lecture, preferredGrade) {
+  if (preferredGrade === ALL_OPTION) return true
+
+  return Number(lecture.targetGrade) === Number(preferredGrade)
+}
+
+function normalizeDesiredCredits(value) {
+  const credits = Number(value)
+  if (!Number.isFinite(credits)) return RECOMMEND_TARGET_CREDITS
+
+  return Math.min(Math.max(Math.floor(credits), 1), 24)
 }
 
 function getRecommendationScore(lecture) {
@@ -316,6 +357,9 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
   const [requiredLectureIds, setRequiredLectureIds] = useState([])
   const [freeDays, setFreeDays] = useState([])
   const [preferredTime, setPreferredTime] = useState('전체')
+  const [preferredTimeRange, setPreferredTimeRange] = useState(DEFAULT_PREFERRED_TIME_RANGE)
+  const [desiredCredits, setDesiredCredits] = useState(String(RECOMMEND_TARGET_CREDITS))
+  const [preferredGrade, setPreferredGrade] = useState(ALL_OPTION)
 
   function showMessage(text, type = 'success') {
     setMessage(text)
@@ -495,6 +539,28 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     )
   }
 
+  function selectPreferredTime(optionKey) {
+    const option = getPreferredTimeOption(optionKey)
+
+    setPreferredTime(option.key)
+    setPreferredTimeRange({
+      start: option.start,
+      end: option.end,
+    })
+  }
+
+  function changePreferredTimeRange(field, value) {
+    setPreferredTime('직접 입력')
+    setPreferredTimeRange(prev => ({
+      ...prev,
+      [field]: value,
+    }))
+  }
+
+  function changeDesiredCredits(value) {
+    setDesiredCredits(value.replace(/\D/g, '').slice(0, 2))
+  }
+
   function hasConflict(newEntries, targetCourses = courses) {
     return newEntries.some(newEntry =>
       targetCourses.some(course =>
@@ -548,6 +614,10 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
 
   function openSettingPanel() {
     setSearchText('')
+    setPreferredTime('전체')
+    setPreferredTimeRange(DEFAULT_PREFERRED_TIME_RANGE)
+    setDesiredCredits(String(RECOMMEND_TARGET_CREDITS))
+    setPreferredGrade(ALL_OPTION)
     showMessage('')
     setIsSettingOpen(true)
   }
@@ -568,6 +638,18 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
   }
 
   function generateRecommendedPlan() {
+    if (!isValidPreferredTimeRange(preferredTimeRange)) {
+      showMessage('선호 시간대는 09:00 형식으로 입력하고 시작 시간이 종료 시간보다 빨라야 합니다.', 'error')
+      return
+    }
+
+    if (!desiredCredits) {
+      showMessage('이번 학기 희망 학점을 입력해 주세요.', 'error')
+      return
+    }
+
+    const targetCredits = normalizeDesiredCredits(desiredCredits)
+
     const requiredWithoutMeetings = requiredLectures.find(lecture => !hasLectureMeetings(lecture))
     if (requiredWithoutMeetings) {
       showMessage(`${requiredWithoutMeetings.name} 강의 시간이 없어 추천 시간표에 넣을 수 없습니다.`, 'error')
@@ -580,7 +662,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
       return
     }
 
-    const requiredTimeLecture = requiredLectures.find(lecture => !fitsPreferredTime(lecture, preferredTime))
+    const requiredTimeLecture = requiredLectures.find(lecture => !fitsPreferredTime(lecture, preferredTimeRange))
     if (requiredTimeLecture) {
       showMessage(`${requiredTimeLecture.name}이 선택한 선호 시간대 밖에 있습니다.`, 'error')
       return
@@ -619,7 +701,8 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
         !requiredLectureIdSet.has(lecture.id) &&
         hasLectureMeetings(lecture) &&
         fitsFreeDays(lecture, freeDays) &&
-        fitsPreferredTime(lecture, preferredTime)
+        fitsPreferredTime(lecture, preferredTimeRange) &&
+        fitsPreferredGrade(lecture, preferredGrade)
       )
       .sort((a, b) =>
         getRecommendationScore(a) - getRecommendationScore(b) ||
@@ -629,7 +712,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
 
     for (const lecture of recommendationCandidates) {
       const totalCredits = nextLectures.reduce((sum, selectedLecture) => sum + Number(selectedLecture.credit || 0), 0)
-      if (nextLectures.length >= RECOMMEND_MAX_LECTURES || totalCredits >= RECOMMEND_TARGET_CREDITS) break
+      if (nextLectures.length >= RECOMMEND_MAX_LECTURES || totalCredits >= targetCredits) break
       tryAddLecture(lecture)
     }
 
@@ -646,7 +729,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
       plan1: nextCourses,
     }))
     setToastMessage('조건에 맞는 1안을 생성했습니다.')
-    showMessage(`조건에 맞는 1안을 생성했습니다. (${nextLectures.length}과목, ${recommendedCredits}학점)`)
+    showMessage(`조건에 맞는 1안을 생성했습니다. (${nextLectures.length}과목, ${recommendedCredits}/${targetCredits}학점)`)
   }
 
   function openSavedPlan(planKey) {
@@ -717,7 +800,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
                     .map(course => (
                       <div
                         key={course.id}
-                        className="course-block"
+                        className={`course-block ${toMinutes(course, 'end') - toMinutes(course, 'start') <= 60 ? 'compact' : ''}`}
                         style={getCourseStyle(course)}
                       >
                         <strong>{course.name}</strong>
@@ -819,7 +902,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
 
                 <div className="recommend-condition-card">
                   <strong>선호 시간대</strong>
-                  <span>해당 시간대 안에 있는 강의만 추천합니다.</span>
+                  <span>직접 입력한 시간대 안에 있는 강의만 추천합니다.</span>
                   <div className="condition-button-row">
                     {PREFERRED_TIME_OPTIONS.map(option => (
                       <button
@@ -827,11 +910,35 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
                         type="button"
                         className={preferredTime === option.key ? 'active' : ''}
                         aria-pressed={preferredTime === option.key}
-                        onClick={() => setPreferredTime(option.key)}
+                        onClick={() => selectPreferredTime(option.key)}
                       >
                         {option.label}
                       </button>
                     ))}
+                  </div>
+                  <div className="preferred-time-inputs">
+                    <label>
+                      시작
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength="5"
+                        placeholder="예: 9:00"
+                        value={preferredTimeRange.start}
+                        onChange={event => changePreferredTimeRange('start', event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      종료
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength="5"
+                        placeholder="예: 18:00"
+                        value={preferredTimeRange.end}
+                        onChange={event => changePreferredTimeRange('end', event.target.value)}
+                      />
+                    </label>
                   </div>
                 </div>
               </div>
