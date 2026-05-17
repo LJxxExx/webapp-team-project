@@ -211,7 +211,18 @@ export default function App() {
     }
     axios.post(`${API_BASE_URL}/api/users/${user.id}/assignments`, postData)
       .then(res => {
-        setAssignments(prev => [...prev, normalizeAssignment(res.data, prev.length)])
+        setAssignments(prev => [
+          ...prev,
+          {
+            ...normalizeAssignment(res.data, prev.length),
+            subject: newAssignment.subject,
+            dueTime: newAssignment.dueTime,
+            progress: newAssignment.progress,
+            memo: newAssignment.memo,
+            mistakeNote: newAssignment.mistakeNote,
+            checklist: newAssignment.checklist,
+          }
+        ])
       })
       .catch(err => console.error('과제 추가 실패:', err))
   }
@@ -229,7 +240,17 @@ export default function App() {
       .then(res => {
         setAssignments(prev =>
           prev.map(assignment =>
-            assignment.id === updatedAssignment.id ? normalizeAssignment(res.data, 0) : assignment
+            assignment.id === updatedAssignment.id
+              ? {
+                  ...normalizeAssignment(res.data, 0),
+                  subject: updatedAssignment.subject,
+                  dueTime: updatedAssignment.dueTime,
+                  progress: updatedAssignment.progress,
+                  memo: updatedAssignment.memo,
+                  mistakeNote: updatedAssignment.mistakeNote,
+                  checklist: updatedAssignment.checklist,
+                }
+              : assignment
           )
         )
       })
@@ -300,6 +321,7 @@ export default function App() {
           <AssignmentPage
             isLoggedIn={isLoggedIn}
             assignments={assignments}
+            savedLectures={savedLectures}
             openDate={openAssignmentDate}
             onClearOpenDate={clearOpenAssignmentDate}
             onAddAssignment={addAssignment}

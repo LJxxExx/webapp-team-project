@@ -28,6 +28,16 @@ function scoreToGrade(score) {
   return GRADE_TABLE[GRADE_TABLE.length - 1]
 }
 
+function isAssignmentPastDue(assignment) {
+  const dueDate = assignment.dueDate
+  const dueTime = assignment.dueTime || '23:59'
+
+  if (!dueDate) return false
+
+  const due = new Date(`${dueDate}T${dueTime}`)
+  return due < new Date()
+}
+
 function calcRisk(course) {
   const { totalClass, absent = 0, hwRate: hwRateOverride = null, exam = null } = course
   const attRate = Math.round(((totalClass - absent) / totalClass) * 100)
@@ -42,7 +52,10 @@ function calcRisk(course) {
   } else { risk += 10 }
   risk = Math.min(risk, 100)
   const level = risk >= 50 ? 'danger' : risk >= 25 ? 'warn' : 'safe'
-  const approxScore = Math.round(attRate * 0.3 + hwRate * 0.3 + (examScore !== null ? examScore : 60) * 0.4)
+
+  const examScoreForCalc = examScore !== null ? examScore : 60
+  const approxScore = Math.round(attRate * 0.3 + hwRate * 0.3 + examScoreForCalc * 0.4)
+
   const gradeInfo = scoreToGrade(approxScore)
   return { attRate, hwRate, risk, level, grade: gradeInfo.grade, gpa: gradeInfo.gpa, approxScore }
 }
@@ -75,11 +88,16 @@ export default function GradeCalculator({ isLoggedIn, savedLectures, assignments
       const related = assignments.filter(
         a => a.subject && a.subject.trim() === course.name.trim()
       )
-      if (related.length === 0) {
+
+      const evaluableAssignments = related.filter(
+        assignment => assignment.isCompleted || isAssignmentPastDue(assignment)
+      )
+
+      if (evaluableAssignments.length === 0) {
         map[course.id] = null // 과제 없음 → 기본값(100%) 처리
       } else {
-        const completedCount = related.filter(a => a.isCompleted).length
-        map[course.id] = Math.round((completedCount / related.length) * 100)
+        const completedCount = evaluableAssignments.filter(a => a.isCompleted).length
+        map[course.id] = Math.round((completedCount / evaluableAssignments.length) * 100)
       }
     })
     return map

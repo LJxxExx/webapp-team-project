@@ -177,6 +177,7 @@ function ProgressCircle({ progress, title }) {
 export default function AssignmentPage({
   isLoggedIn,
   assignments = [],
+  savedLectures = [],
   openDate,
   onClearOpenDate,
   onAddAssignment,
@@ -196,6 +197,7 @@ export default function AssignmentPage({
 
   const [title, setTitle] = useState('')
   const [subject, setSubject] = useState('')
+  const [subjectSearchText, setSubjectSearchText] = useState('')
   const [dueDate, setDueDate] = useState(formatDateKey(today))
   const [dueTime, setDueTime] = useState('23:59')
   const [progress, setProgress] = useState(0)
@@ -218,6 +220,7 @@ export default function AssignmentPage({
     if (editingAssignment) {
       setTitle(editingAssignment.title)
       setSubject(editingAssignment.subject)
+      setSubjectSearchText(editingAssignment.subject)
       setDueDate(editingAssignment.dueDate)
       setDueTime(editingAssignment.dueTime)
       setProgress(editingAssignment.progress)
@@ -233,6 +236,7 @@ export default function AssignmentPage({
   function resetForm(date = selectedDate) {
     setTitle('')
     setSubject('')
+    setSubjectSearchText('')
     setDueDate(date)
     setDueTime('23:59')
     setProgress(0)
@@ -364,6 +368,21 @@ export default function AssignmentPage({
 
   const totalCompletionRate = getTotalCompletionRate(assignments)
   const upcomingCompletionRate = getUpcomingCompletionRate(assignments)
+
+  const filteredSavedLectures = savedLectures.filter(lecture => {
+    const keyword = subjectSearchText.trim().toLowerCase()
+
+    if (!keyword) return true
+
+    const target = [
+      lecture.name,
+      lecture.professor,
+      lecture.lectureCode,
+      lecture.sectionCode,
+    ].join(' ').toLowerCase()
+
+    return target.includes(keyword)
+  })
 
   return (
     <LoginRequiredSection isLoggedIn={isLoggedIn} className="assign-page">
@@ -504,12 +523,36 @@ export default function AssignmentPage({
 
               <div className="ap-form-group">
                 <label>과목명</label>
+
                 <input
                   type="text"
-                  value={subject}
-                  placeholder="예: 운영체제"
-                  onChange={e => setSubject(e.target.value)}
+                  value={subjectSearchText}
+                  placeholder="현재 시간표 과목 검색"
+                  onChange={e => setSubjectSearchText(e.target.value)}
                 />
+
+                <select
+                  value={subject}
+                  onChange={e => {
+                    setSubject(e.target.value)
+                    setSubjectSearchText(e.target.value)
+                  }}
+                >
+                  <option value="">과목을 선택하세요</option>
+
+                  {savedLectures.length === 0 && (
+                    <option value="" disabled>
+                      시간표에 등록된 과목이 없습니다
+                    </option>
+                  )}
+
+                  {filteredSavedLectures.map(lecture => (
+                    <option key={lecture.id} value={lecture.name}>
+                      {lecture.name}
+                      {lecture.professor ? ` - ${lecture.professor}` : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="ap-form-row">
