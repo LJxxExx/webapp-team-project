@@ -33,63 +33,91 @@ graph TD
 ```
 
 ```mermaid
-graph TB
-    subgraph Frontend ["Frontend (React)"]
-        App["App.js"] --> Nav["Navbar"]
-        App --> Sidebar["Sidebar"]
-        App --> Timetable["Timetable"]
-        App --> GradeCalc["GradeCalculator"]
-        App --> AssignPage["AssignmentPage"]
-        App --> EnrollPage["EnrollmentPage"]
-        App --> MyPage["MyPage"]
-        App --> Academic["AcademicSection"]
-    end
+classDiagram
+    class App {
+        +fetchUserData()
+        +refreshUserData()
+        +navigateTo(next)
+        +login()
+        +logout()
+        +addAssignment(newAssignment)
+        +updateAssignment(updatedAssignment)
+        +deleteAssignment(assignmentId)
+        +toggleAssignmentComplete(assignmentId)
+        +openAssignmentFromSidebar(assignment)
+        +clearOpenAssignmentDate()
+        +renderContent(p)
+    }
 
-    subgraph Backend ["Backend (FastAPI)"]
-        Main["main.py (Endpoints)"]
-        Models["models.py (ORM Models)"]
-        DBEngine["database.py (DB Engine)"]
-        
-        Main -.-> Models
-        Models -.-> DBEngine
-        
-        subgraph APIs ["APIs"]
-            ApiLec["/api/lectures"]
-            ApiTime["/api/users/{id}/timetable"]
-            ApiEnroll["/api/users/{id}/enrollments"]
-            ApiAssign["/api/users/{id}/assignments"]
-            ApiAssignId["/api/assignments/{id}"]
-        end
-        
-        Main --- ApiLec
-        Main --- ApiTime
-        Main --- ApiEnroll
-        Main --- ApiAssign
-        Main --- ApiAssignId
-    end
+    class Timetable {
+        +showMessage(text, type)
+        +changeLectureType(nextType)
+        +changeCollege(nextCollege)
+        +changeDivision(nextDivision)
+        +changeLiberalType(nextType)
+        +hasConflict(newEntries)
+        +updateActivePlan(updater)
+        +addLecture(lecture)
+        +deleteLecture(lectureId)
+        +clearLectures()
+        +openSavedPlan(planKey)
+        +saveTimetable()
+    }
 
-    subgraph Database ["Database (MySQL)"]
-        UserTbl["User Table"]
-        AssignTbl["Assignment Table"]
-        EnrollTbl["Enrollment Table"]
-        LecTbl["Lecture Table"]
-        LecMeetTbl["LectureMeeting Table"]
-    end
+    class AssignmentPage {
+        +resetForm(date)
+        +movePrevMonth()
+        +moveNextMonth()
+        +selectDate(dateKey)
+        +goBackToCalendar()
+        +addCustomChecklist()
+        +removeChecklistItem(itemId)
+        +toggleFormChecklist(itemId)
+        +handleSubmit(e)
+        +handleChecklistChange(assignmentId, itemId)
+    }
 
-    %% Communication (프론트 -> 백엔드)
-    App -- "Axios (HTTP/JSON)" --> Main
-    
-    %% Relationships (백엔드 -> DB)
-    Models --- UserTbl
-    Models --- AssignTbl
-    Models --- EnrollTbl
-    Models --- LecTbl
-    Models --- LecMeetTbl
+    class GradeCalculator {
+        +updateStat(key, val)
+        +scoreToGrade(score)
+        +calcRisk(course)
+    }
 
-    UserTbl -- "1:N" --> AssignTbl
-    UserTbl -- "1:N" --> EnrollTbl
-    LecTbl -- "1:N" --> EnrollTbl
-    LecTbl -- "1:N" --> LecMeetTbl
+    class EnrollmentPage {
+        +generateCode()
+        +enrollCourse(course)
+        +cancelCourse(course)
+        +handleAction(action, course)
+    }
+
+    class MyPage {
+        +onLogin()
+        +onLogout()
+    }
+
+    class AcademicSection {
+        +AcademicSection(enrolledCourses)
+    }
+
+    class Sidebar {
+        +onLogin()
+        +onLogout()
+        +onToggleAssignmentComplete()
+        +onOpenAssignment()
+    }
+
+    class Navbar {
+        +onNavigate(activePage)
+    }
+
+    App --> Navbar : props(activePage, navigateTo)
+    App --> Sidebar : props(login, logout, toggleAssignmentComplete, openAssignmentFromSidebar)
+    App --> Timetable : props(refreshUserData, activePlan)
+    App --> GradeCalculator : props(savedLectures, assignments)
+    App --> AssignmentPage : props(addAssignment, updateAssignment, deleteAssignment, toggleAssignmentComplete)
+    App --> EnrollmentPage : props(lectureCatalog, savedPlans)
+    App --> MyPage : props(login, logout)
+    App --> AcademicSection : props(enrolledCourses)
 ```
 
 ### 아키텍처 상세 설명
