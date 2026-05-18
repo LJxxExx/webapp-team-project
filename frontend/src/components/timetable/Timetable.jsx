@@ -360,8 +360,8 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
   const [preferredTimeRange, setPreferredTimeRange] = useState(DEFAULT_PREFERRED_TIME_RANGE)
   const [desiredCredits, setDesiredCredits] = useState(String(RECOMMEND_TARGET_CREDITS))
   const [preferredGrade, setPreferredGrade] = useState(ALL_OPTION)
-  const [lectureGradeFilter, setLectureGradeFilter] = useState(ALL_OPTION)
-  const [lectureCreditFilter, setLectureCreditFilter] = useState(ALL_OPTION)
+  const [lectureGradeFilters, setLectureGradeFilters] = useState([])
+  const [lectureCreditFilters, setLectureCreditFilters] = useState([])
   const [isLectureFilterOpen, setIsLectureFilterOpen] = useState(false)
 
   function showMessage(text, type = 'success') {
@@ -491,10 +491,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     [lectureCatalog]
   )
 
-  const activeLectureFilterCount = [
-    lectureGradeFilter !== ALL_OPTION,
-    lectureCreditFilter !== ALL_OPTION,
-  ].filter(Boolean).length
+  const activeLectureFilterCount = lectureGradeFilters.length + lectureCreditFilters.length
   const hasActiveLectureFilters = activeLectureFilterCount > 0
 
   const filteredLectures = useMemo(() => {
@@ -510,13 +507,13 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
         ? lecture.liberalType === selectedLiberalType &&
           (selectedLiberalArea === '전체' || lecture.liberalArea === selectedLiberalArea)
         : true
-      const gradeMatched = lectureGradeFilter === ALL_OPTION || Number(lecture.targetGrade) === Number(lectureGradeFilter)
-      const creditMatched = lectureCreditFilter === ALL_OPTION || Number(lecture.credit) === Number(lectureCreditFilter)
+      const gradeMatched = lectureGradeFilters.length === 0 || lectureGradeFilters.includes(String(lecture.targetGrade))
+      const creditMatched = lectureCreditFilters.length === 0 || lectureCreditFilters.includes(String(Number(lecture.credit)))
       const keywordMatched = !keyword || includesKeyword(lecture, keyword)
 
       return typeMatched && majorMatched && liberalMatched && gradeMatched && creditMatched && keywordMatched
     })
-  }, [lectureCatalog, lectureType, searchText, selectedCollege, selectedDivision, selectedMajor, selectedLiberalArea, selectedLiberalType, lectureGradeFilter, lectureCreditFilter])
+  }, [lectureCatalog, lectureType, searchText, selectedCollege, selectedDivision, selectedMajor, selectedLiberalArea, selectedLiberalType, lectureGradeFilters, lectureCreditFilters])
 
   const requiredLectureOptions = useMemo(
     () => filteredLectures.filter(hasLectureMeetings),
@@ -583,9 +580,35 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     setDesiredCredits(value.replace(/\D/g, '').slice(0, 2))
   }
 
+  function toggleLectureGradeFilter(value) {
+    if (value === ALL_OPTION) {
+      setLectureGradeFilters([])
+      return
+    }
+
+    setLectureGradeFilters(prev =>
+      prev.includes(value)
+        ? prev.filter(filterValue => filterValue !== value)
+        : [...prev, value]
+    )
+  }
+
+  function toggleLectureCreditFilter(value) {
+    if (value === ALL_OPTION) {
+      setLectureCreditFilters([])
+      return
+    }
+
+    setLectureCreditFilters(prev =>
+      prev.includes(value)
+        ? prev.filter(filterValue => filterValue !== value)
+        : [...prev, value]
+    )
+  }
+
   function clearLectureDetailFilters() {
-    setLectureGradeFilter(ALL_OPTION)
-    setLectureCreditFilter(ALL_OPTION)
+    setLectureGradeFilters([])
+    setLectureCreditFilters([])
   }
 
   function hasConflict(newEntries, targetCourses = courses) {
@@ -645,8 +668,8 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     setPreferredTimeRange(DEFAULT_PREFERRED_TIME_RANGE)
     setDesiredCredits(String(RECOMMEND_TARGET_CREDITS))
     setPreferredGrade(ALL_OPTION)
-    setLectureGradeFilter(ALL_OPTION)
-    setLectureCreditFilter(ALL_OPTION)
+    setLectureGradeFilters([])
+    setLectureCreditFilters([])
     setIsLectureFilterOpen(false)
     showMessage('')
     setIsSettingOpen(true)
@@ -1036,23 +1059,48 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
 
                   {isLectureFilterOpen && (
                     <div className="lecture-quick-filters">
-                      <label>
-                        학년
-                        <select value={lectureGradeFilter} onChange={event => setLectureGradeFilter(event.target.value)}>
-                          {GRADE_OPTIONS.map(option => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        학점
-                        <select value={lectureCreditFilter} onChange={event => setLectureCreditFilter(event.target.value)}>
-                          <option value={ALL_OPTION}>전체</option>
-                          {creditFilterOptions.map(credit => (
-                            <option key={credit} value={credit}>{credit}학점</option>
-                          ))}
-                        </select>
-                      </label>
+                      <div className="lecture-filter-group">
+                        <strong>학년</strong>
+                        <div className="lecture-filter-chip-row">
+                          {GRADE_OPTIONS.map(option => {
+                            const isAllOption = option.value === ALL_OPTION
+                            const isActive = isAllOption ? lectureGradeFilters.length === 0 : lectureGradeFilters.includes(option.value)
+
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                className={isActive ? 'active' : ''}
+                                aria-pressed={isActive}
+                                onClick={() => toggleLectureGradeFilter(option.value)}
+                              >
+                                {option.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                      <div className="lecture-filter-group">
+                        <strong>학점</strong>
+                        <div className="lecture-filter-chip-row">
+                          {[ALL_OPTION, ...creditFilterOptions].map(credit => {
+                            const isAllOption = credit === ALL_OPTION
+                            const isActive = isAllOption ? lectureCreditFilters.length === 0 : lectureCreditFilters.includes(credit)
+
+                            return (
+                              <button
+                                key={credit}
+                                type="button"
+                                className={isActive ? 'active' : ''}
+                                aria-pressed={isActive}
+                                onClick={() => toggleLectureCreditFilter(credit)}
+                              >
+                                {isAllOption ? credit : `${credit}학점`}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
                     </div>
                   )}
 
