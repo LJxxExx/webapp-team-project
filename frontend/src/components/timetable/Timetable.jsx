@@ -360,6 +360,9 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
   const [preferredTimeRange, setPreferredTimeRange] = useState(DEFAULT_PREFERRED_TIME_RANGE)
   const [desiredCredits, setDesiredCredits] = useState(String(RECOMMEND_TARGET_CREDITS))
   const [preferredGrade, setPreferredGrade] = useState(ALL_OPTION)
+  const [lectureGradeFilter, setLectureGradeFilter] = useState(ALL_OPTION)
+  const [lectureCreditFilter, setLectureCreditFilter] = useState(ALL_OPTION)
+  const [isLectureFilterOpen, setIsLectureFilterOpen] = useState(false)
 
   function showMessage(text, type = 'success') {
     setMessage(text)
@@ -477,6 +480,23 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     [lectureCatalog, selectedLiberalType]
   )
 
+  const creditFilterOptions = useMemo(
+    () => uniqueValues(
+      lectureCatalog
+        .map(lecture => Number(lecture.credit))
+        .filter(credit => Number.isFinite(credit) && credit <= 3)
+        .map(credit => String(credit))
+    )
+      .sort((creditA, creditB) => Number(creditA) - Number(creditB)),
+    [lectureCatalog]
+  )
+
+  const activeLectureFilterCount = [
+    lectureGradeFilter !== ALL_OPTION,
+    lectureCreditFilter !== ALL_OPTION,
+  ].filter(Boolean).length
+  const hasActiveLectureFilters = activeLectureFilterCount > 0
+
   const filteredLectures = useMemo(() => {
     const keyword = searchText.trim()
     return lectureCatalog.filter(lecture => {
@@ -490,11 +510,13 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
         ? lecture.liberalType === selectedLiberalType &&
           (selectedLiberalArea === '전체' || lecture.liberalArea === selectedLiberalArea)
         : true
+      const gradeMatched = lectureGradeFilter === ALL_OPTION || Number(lecture.targetGrade) === Number(lectureGradeFilter)
+      const creditMatched = lectureCreditFilter === ALL_OPTION || Number(lecture.credit) === Number(lectureCreditFilter)
       const keywordMatched = !keyword || includesKeyword(lecture, keyword)
 
-      return typeMatched && majorMatched && liberalMatched && keywordMatched
+      return typeMatched && majorMatched && liberalMatched && gradeMatched && creditMatched && keywordMatched
     })
-  }, [lectureCatalog, lectureType, searchText, selectedCollege, selectedDivision, selectedMajor, selectedLiberalArea, selectedLiberalType])
+  }, [lectureCatalog, lectureType, searchText, selectedCollege, selectedDivision, selectedMajor, selectedLiberalArea, selectedLiberalType, lectureGradeFilter, lectureCreditFilter])
 
   const requiredLectureOptions = useMemo(
     () => filteredLectures.filter(hasLectureMeetings),
@@ -561,6 +583,11 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     setDesiredCredits(value.replace(/\D/g, '').slice(0, 2))
   }
 
+  function clearLectureDetailFilters() {
+    setLectureGradeFilter(ALL_OPTION)
+    setLectureCreditFilter(ALL_OPTION)
+  }
+
   function hasConflict(newEntries, targetCourses = courses) {
     return newEntries.some(newEntry =>
       targetCourses.some(course =>
@@ -618,12 +645,16 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     setPreferredTimeRange(DEFAULT_PREFERRED_TIME_RANGE)
     setDesiredCredits(String(RECOMMEND_TARGET_CREDITS))
     setPreferredGrade(ALL_OPTION)
+    setLectureGradeFilter(ALL_OPTION)
+    setLectureCreditFilter(ALL_OPTION)
+    setIsLectureFilterOpen(false)
     showMessage('')
     setIsSettingOpen(true)
   }
 
   function closeSettingPanel() {
     setSearchText('')
+    setIsLectureFilterOpen(false)
     showMessage('')
     setIsSettingOpen(false)
   }
@@ -884,7 +915,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
 
                 <div className="recommend-condition-card">
                   <strong>공강 요일</strong>
-                  <span>수업을 넣지 않을 요일을 선택하세요.</span>
+                  <span>수업을 넣지 않을 요일과 목표 조건을 선택하세요.</span>
                   <div className="condition-button-row">
                     {DAYS.map(day => (
                       <button
@@ -897,6 +928,27 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
                         {day}
                       </button>
                     ))}
+                  </div>
+                  <div className="recommend-compact-fields">
+                    <label>
+                      희망 학점
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength="2"
+                        placeholder="예: 18"
+                        value={desiredCredits}
+                        onChange={event => changeDesiredCredits(event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      희망 학년
+                      <select value={preferredGrade} onChange={event => setPreferredGrade(event.target.value)}>
+                        {GRADE_OPTIONS.map(option => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
                 </div>
 
@@ -952,18 +1004,57 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
                 </div>
 
                 <div className="lecture-filter-panel">
-                  <div className="lecture-type-tabs" aria-label="강의 분류">
-                    {['전공', '교양'].map(type => (
+                  <div className="lecture-filter-toolbar">
+                    <div className="lecture-type-tabs" aria-label="강의 분류">
+                      {['전공', '교양'].map(type => (
+                        <button
+                          key={type}
+                          type="button"
+                          className={lectureType === type ? 'active' : ''}
+                          onClick={() => changeLectureType(type)}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="lecture-filter-actions">
+                      {hasActiveLectureFilters && (
+                        <button type="button" className="lecture-filter-reset" onClick={clearLectureDetailFilters}>
+                          초기화
+                        </button>
+                      )}
                       <button
-                        key={type}
                         type="button"
-                        className={lectureType === type ? 'active' : ''}
-                        onClick={() => changeLectureType(type)}
+                        className={`lecture-filter-toggle ${isLectureFilterOpen || hasActiveLectureFilters ? 'active' : ''}`}
+                        aria-expanded={isLectureFilterOpen}
+                        onClick={() => setIsLectureFilterOpen(prev => !prev)}
                       >
-                        {type}
+                        필터{hasActiveLectureFilters ? ` ${activeLectureFilterCount}` : ''}
                       </button>
-                    ))}
+                    </div>
                   </div>
+
+                  {isLectureFilterOpen && (
+                    <div className="lecture-quick-filters">
+                      <label>
+                        학년
+                        <select value={lectureGradeFilter} onChange={event => setLectureGradeFilter(event.target.value)}>
+                          {GRADE_OPTIONS.map(option => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        학점
+                        <select value={lectureCreditFilter} onChange={event => setLectureCreditFilter(event.target.value)}>
+                          <option value={ALL_OPTION}>전체</option>
+                          {creditFilterOptions.map(credit => (
+                            <option key={credit} value={credit}>{credit}학점</option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  )}
 
                   {lectureType === '전공' ? (
                     <div className="lecture-filter-grid major-filter-grid">

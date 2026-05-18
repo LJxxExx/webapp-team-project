@@ -418,19 +418,23 @@
   color: #fff;
   font-weight: 700;
 }
-.preferred-time-inputs {
+.preferred-time-inputs,
+.recommend-compact-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-top: 10px;
 }
-.preferred-time-inputs label {
+.preferred-time-inputs label,
+.recommend-compact-fields label {
   display: grid;
   gap: 5px;
   font-size: 11px;
   color: #6b7280;
 }
-.preferred-time-inputs input {
+.preferred-time-inputs input,
+.recommend-compact-fields input,
+.recommend-compact-fields select {
   width: 100%;
   height: 32px;
   border: 1px solid #d1d5db;
@@ -439,6 +443,9 @@
   font-size: 12px;
   color: #374151;
   background: #fff;
+}
+.recommend-compact-fields select {
+  cursor: pointer;
 }
 .lecture-manager {
   display: grid;
@@ -483,25 +490,70 @@
   border-radius: 8px;
   background: #fbfcfe;
 }
+.lecture-filter-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
 .lecture-type-tabs {
   display: flex;
   gap: 6px;
-  margin-bottom: 8px;
 }
-.lecture-type-tabs button {
+.lecture-type-tabs button,
+.lecture-filter-toggle,
+.lecture-filter-reset {
   border: 1px solid #d1d5db;
   border-radius: 7px;
   background: #fff;
   color: #374151;
-  padding: 6px 12px;
+  height: 30px;
+  padding: 0 10px;
   font-size: 12px;
   cursor: pointer;
 }
-.lecture-type-tabs button.active {
+.lecture-type-tabs button.active,
+.lecture-filter-toggle.active {
   border-color: #2563eb;
   background: #eff6ff;
   color: #1d4ed8;
   font-weight: 700;
+}
+.lecture-filter-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.lecture-filter-reset {
+  color: #6b7280;
+}
+.lecture-quick-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+.lecture-quick-filters label {
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  color: #6b7280;
+}
+.lecture-quick-filters select {
+  width: 100%;
+  height: 30px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  padding: 0 7px;
+  font-size: 12px;
+  color: #374151;
+  background: #fff;
+  cursor: pointer;
 }
 .lecture-filter-grid {
   display: grid;
