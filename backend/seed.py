@@ -10,10 +10,10 @@ def seed_db():
     try:
         # 1. 중복 실행 방지
         if db.query(models.User).first():
-            print("🌱 이미 데이터가 존재합니다. 시딩을 건너뜁니다.")
+            print("이미 데이터가 존재합니다. 시딩을 건너뜁니다.")
             return
 
-        print("🚀 비밀번호가 적용된 테스트 유저 시딩을 시작합니다...")
+        print("비밀번호가 적용된 테스트 유저 시딩을 시작합니다...")
 
         # 2. 비밀번호 암호화 (실제로는 프론트에서 받은 문자를 암호화함)
         hashed_pw = pwd_context.hash("1234") 
@@ -32,11 +32,11 @@ def seed_db():
 
         # 5. 최종 저장 (Commit)
         db.commit()
-        print("🎉 모든 데이터가 성공적으로 DB에 저장되었습니다! (테스트 계정 - 학번: 20220001 / 비밀번호: 1234)")
+        print("모든 데이터가 성공적으로 DB에 저장되었습니다! (테스트 계정 - 학번: 20220001 / 비밀번호: 1234)")
 
     except Exception as e:
         db.rollback()
-        print(f"❌ 데이터 시딩 중 에러가 발생했습니다: {e}")
+        print(f"데이터 시딩 중 에러가 발생했습니다: {e}")
     finally:
         db.close()
 

@@ -15,7 +15,7 @@ import time
 # 1. DB 테이블 자동 생성
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🚀 서버를 시작합니다. DB 연결을 시도합니다...")
+    print("서버를 시작합니다. DB 연결을 시도합니다...")
     
     max_retries = 5  # 최대 5번 재시도
     for attempt in range(max_retries):
@@ -23,19 +23,19 @@ async def lifespan(app: FastAPI):
             # DB 연결을 가장 먼저 시도하는 부분 (테이블 생성)
             models.Base.metadata.create_all(bind=engine)
             ensure_lecture_schema()
-            print("✅ DB 연결 및 테이블 뼈대 생성 성공!")
+            print("DB 연결 및 테이블 뼈대 생성 성공!")
             break  # 성공하면 반복문 탈출
         except OperationalError:
-            print(f"⏳ DB가 아직 준비되지 않았습니다. 3초 후 다시 시도합니다... ({attempt + 1}/{max_retries})")
+            print(f"DB가 아직 준비되지 않았습니다. 3초 후 다시 시도합니다... ({attempt + 1}/{max_retries})")
             time.sleep(3)
     else:
         # 5번 다 실패했을 때만 에러 발생
-        raise Exception("🚨 DB 연결에 최종 실패했습니다. DB 상태를 확인하세요.")
+        raise Exception("DB 연결에 최종 실패했습니다. DB 상태를 확인하세요.")
 
     # 연결 성공 후 데이터 주입 진행
     bulk_insert.insert_lectures()
     seed.seed_db()
-    print("✅ 모든 데이터베이스 준비가 완료되었습니다.")
+    print("모든 데이터베이스 준비가 완료되었습니다.")
     yield
 
     # 서버 종료시 실행
@@ -146,7 +146,7 @@ def find_time_conflict(user, new_lecture):
     return None
 
 # ---------------------------------------------------------
-# 🚀 4. 전체 강의 목록 조회 API
+# 4. 전체 강의 목록 조회 API
 # ---------------------------------------------------------
 @app.get("/api/lectures")
 def get_all_lectures(db: Session = Depends(get_db)):
@@ -192,7 +192,7 @@ def get_all_lectures(db: Session = Depends(get_db)):
     return result
 
 # ---------------------------------------------------------
-# 🚀 5. 학번(student_id) 기반 시간표 조회 및 수강신청 API
+# 5. 학번(student_id) 기반 시간표 조회 및 수강신청 API
 # ---------------------------------------------------------
 @app.get("/api/users/{student_id}/timetable")
 def get_user_timetable(student_id: str, db: Session = Depends(get_db)):
@@ -275,7 +275,7 @@ def drop_lecture(student_id: str, lecture_id: str, db: Session = Depends(get_db)
     return {"detail": "수강 취소 완료", "lectureId": lecture.id}
 
 # ---------------------------------------------------------
-# 🚀 6. 학번(student_id) 기반 과제 API (CRUD)
+# 6. 학번(student_id) 기반 과제 API (CRUD)
 # ---------------------------------------------------------
 @app.get("/api/users/{student_id}/assignments")
 def get_user_assignments(student_id: str, db: Session = Depends(get_db)):
