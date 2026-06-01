@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import LoginRequiredSection from '../common/LoginRequiredSection'
 import './Timetable.css'
 
@@ -84,6 +84,12 @@ function getLectureKeyFromEntry(entry) {
   if (entry.lectureId) return entry.lectureId
   if (entry.lectureCode && entry.sectionCode) return `${entry.lectureCode}-${entry.sectionCode}`
   return entry.id
+}
+
+function getNameProfessorKey(item) {
+  if (!item?.name) return ''
+
+  return `${item.name || ''}__${item.professor || ''}`
 }
 
 function assignColorsToPlanEntries(entries) {
@@ -328,11 +334,16 @@ function getCourseStyle(course) {
 
 export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans, setSavedPlans, activePlan, setActivePlan }) {
   const [courses, setCourses] = useState(savedPlans[activePlan] || [])
+  const savedPlansRef = useRef(savedPlans)
   const [isSettingOpen, setIsSettingOpen] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [lectureType, setLectureType] = useState('전공')
 
   // 부모(App.js)에서 백엔드 데이터를 가져오면 courses 상태를 동기화
+  useEffect(() => {
+    savedPlansRef.current = savedPlans
+  }, [savedPlans])
+
   useEffect(() => {
     const planCourses = savedPlans[activePlan] || []
     const colorAssignedCourses = assignColorsToPlanEntries(planCourses)
@@ -343,6 +354,10 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
         ...prevPlans,
         [activePlan]: colorAssignedCourses,
       }))
+      savedPlansRef.current = {
+        ...savedPlansRef.current,
+        [activePlan]: colorAssignedCourses,
+      }
     }
   }, [activePlan, savedPlans, setSavedPlans])
 
@@ -626,10 +641,14 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
   function updateActivePlan(updater) {
     setCourses(prevCourses => {
       const nextCourses = updater(prevCourses)
-      setSavedPlans(prevPlans => ({
-        ...prevPlans,
-        [activePlan]: nextCourses
-      }))
+      setSavedPlans(prevPlans => {
+        const nextPlans = {
+          ...prevPlans,
+          [activePlan]: nextCourses
+        }
+        savedPlansRef.current = nextPlans
+        return nextPlans
+      })
       return nextCourses
     })
   }
@@ -725,6 +744,19 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     let nextCourses = []
     const nextLectures = []
     const selectedNames = new Set()
+    const savedPlansSnapshot = savedPlansRef.current || savedPlans
+    const otherPlanEntries = activePlan === 'plan2' ? (savedPlansSnapshot.plan1 || []) : []
+    const excludedLectureKeys = activePlan === 'plan2'
+      ? new Set(otherPlanEntries.map(getLectureKeyFromEntry).filter(Boolean))
+      : new Set()
+    const otherPlanNameProfessorKeys = activePlan === 'plan2'
+      ? new Set(otherPlanEntries.map(getNameProfessorKey).filter(Boolean))
+      : new Set()
+    const isExcludedByOtherPlan = lecture =>
+      excludedLectureKeys.has(lecture.id) ||
+      excludedLectureKeys.has(`${lecture.lectureCode}-${lecture.sectionCode}`)
+    const getAlternativePenalty = lecture =>
+      activePlan === 'plan2' && otherPlanNameProfessorKeys.has(getNameProfessorKey(lecture)) ? 100 : 0
 
     const tryAddLecture = lecture => {
       if (!hasLectureMeetings(lecture) || selectedNames.has(lecture.name)) return false
@@ -753,12 +785,14 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     const recommendationCandidates = filteredLectures
       .filter(lecture =>
         !requiredLectureIdSet.has(lecture.id) &&
+        !isExcludedByOtherPlan(lecture) &&
         hasLectureMeetings(lecture) &&
         fitsFreeDays(lecture, freeDays) &&
         fitsPreferredTime(lecture, preferredTimeRange) &&
         fitsPreferredGrade(lecture, preferredGrade)
       )
       .sort((a, b) =>
+        getAlternativePenalty(a) - getAlternativePenalty(b) ||
         getRecommendationScore(a) - getRecommendationScore(b) ||
         String(a.lectureCode).localeCompare(String(b.lectureCode), 'ko') ||
         a.name.localeCompare(b.name, 'ko')
@@ -776,20 +810,26 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     }
 
     const recommendedCredits = nextLectures.reduce((sum, lecture) => sum + Number(lecture.credit || 0), 0)
-    setActivePlan('plan1')
+    const planLabel = activePlan === 'plan1' ? '1안' : '2안'
+
     setCourses(nextCourses)
-    setSavedPlans(prevPlans => ({
-      ...prevPlans,
-      plan1: nextCourses,
-    }))
-    setToastMessage('조건에 맞는 1안을 생성했습니다.')
-    showMessage(`조건에 맞는 1안을 생성했습니다. (${nextLectures.length}과목, ${recommendedCredits}/${targetCredits}학점)`)
+    setSavedPlans(prevPlans => {
+      const nextPlans = {
+        ...prevPlans,
+        [activePlan]: nextCourses,
+      }
+      savedPlansRef.current = nextPlans
+      return nextPlans
+    })
+    setToastMessage(`조건에 맞는 ${planLabel}을 생성했습니다.`)
+    showMessage(`조건에 맞는 ${planLabel}을 생성했습니다. (${nextLectures.length}과목, ${recommendedCredits}/${targetCredits}학점)`)
   }
 
   function openSavedPlan(planKey) {
     const planLabel = planKey === 'plan1' ? '1안' : '2안'
+    const plansSnapshot = savedPlansRef.current || savedPlans
     setActivePlan(planKey)
-    setCourses(savedPlans[planKey] || [])
+    setCourses(plansSnapshot[planKey] || [])
     setToastMessage(`${planLabel}을 불러왔습니다.`)
     showMessage(`${planLabel}을 불러왔습니다.`)
   }
@@ -895,10 +935,10 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
               <div className="lecture-search-header">
                 <div>
                   <h4>추천 조건</h4>
-                  <span>선택한 조건으로 1안을 자동 생성합니다.</span>
+                  <span>선택한 조건으로 {activePlan === 'plan1' ? '1안' : '2안'}을 자동 생성합니다.</span>
                 </div>
                 <button type="button" className="btn-primary" onClick={generateRecommendedPlan}>
-                  1안 자동 생성
+                  {activePlan === 'plan1' ? '1안' : '2안'} 자동 생성
                 </button>
               </div>
 
