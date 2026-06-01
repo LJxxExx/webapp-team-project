@@ -39,6 +39,7 @@ export default function Sidebar({
   user,
   onLogin,
   onLogout,
+  onSave,
   assignments = [],
   onToggleAssignmentComplete,
   onOpenAssignment,
@@ -57,15 +58,17 @@ export default function Sidebar({
       {/* 로그인 카드 */}
       <div className="sidebar-card login-card">
         {isLoggedIn ? (
-          <div className="login-info">
+          <div className="login-info-auth">
+            <div className="user-details">
+              <span className="user-text">학번: {user.id}</span>
+              <span className="user-text">학과: {user.dept}</span>
+              <span className="user-text">학년: {user.grade}</span>
+            </div>
             <button className="btn-logout" onClick={onLogout}>로그아웃</button>
-            <span className="login-username">{user.name}</span>
-            <span className="login-detail">내 정보</span>
           </div>
         ) : (
           <div className="login-info">
-            <button className="btn-login" onClick={onLogin}>테스트용 로그인</button>
-            <span className="login-detail">내정보</span>
+            <button className="btn-login" onClick={onLogin}>로그인</button>
           </div>
         )}
       </div>
