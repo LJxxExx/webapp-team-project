@@ -167,8 +167,8 @@
 }
 .course-block {
   position: absolute;
-  left: 10px;
-  right: 10px;
+  left: 4px;
+  right: 4px;
   border-radius: 5px;
   padding: 8px 9px;
   font-weight: 500;

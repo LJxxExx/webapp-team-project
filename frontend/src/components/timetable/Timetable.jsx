@@ -225,7 +225,7 @@ function toMinutes({ startHour, startMinute = 0, endHour, endMinute = 0 }, type 
     : Number(endHour) * 60 + Number(endMinute || 0)
 }
 
-// 같은 요일에 시간이 겹치는 강의가 있는지 검사 (상태에 의존하지 않는 순수 함수)
+// 같은 요일에 시간이 겹치는 강의가 있는지 검사
 function hasTimeConflict(newEntries, targetCourses) {
   return newEntries.some(newEntry =>
     targetCourses.some(course =>
@@ -1172,7 +1172,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
       className="lecture-search-input"
       value={searchText}
       onChange={event => setSearchText(event.target.value)}
-      placeholder="계명대 강의명, 교수명, 강의코드, 강의실 검색"
+      placeholder="강의명, 교수명, 강의코드, 강의실 검색"
     />
   )
 
@@ -1311,7 +1311,6 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
               <div className="recommend-scope">
                 <div className="recommend-scope-head">
                   <strong>강의 범위</strong>
-                  <span>전공/교양과 대학·학부·전공을 좁히면 아래 필수 과목 목록도 함께 걸러집니다.</span>
                 </div>
                 {lectureFilterPanel}
                 {lectureSearchField}
@@ -1320,7 +1319,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
               <div className="recommend-condition-grid">
                 <div className="recommend-condition-card required-course-card">
                   <strong>필수 과목 선택</strong>
-                  <span>위 강의 범위/검색 결과에서 꼭 넣을 과목을 체크하세요. ({requiredLectureOptions.length}개)</span>
+                  <span>{requiredLectureOptions.length}개</span>
                   <div className="required-course-list">
                     {requiredLectureOptions.length === 0 ? (
                       <p>선택할 수 있는 강의가 없습니다.</p>
