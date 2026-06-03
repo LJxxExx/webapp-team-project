@@ -103,6 +103,21 @@ export default function App() {
   const [animating, setAnimating] = useState(false)
   const [isLoginModalOpen, setLoginModalOpen] = useState(false)
   
+  // 로그인 상태 복원
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user')
+    const savedIsLoggedIn = localStorage.getItem('isLoggedIn')
+    if (savedIsLoggedIn === 'true' && savedUser) {
+      try {
+        const parsedUser = JSON.parse(savedUser)
+        setIsLoggedIn(true)
+        setUser(parsedUser)
+      } catch (e) {
+        console.error('Failed to parse user from localStorage', e)
+      }
+    }
+  }, [])
+  
   // 전역 데이터 상태
   const [lectureCatalog, setLectureCatalog] = useState([])
   const [assignments, setAssignments] = useState([])
@@ -215,8 +230,15 @@ export default function App() {
   function handleLoginSuccess(userData) {
     setIsLoggedIn(true)
     setUser(userData)
+    localStorage.setItem('isLoggedIn', 'true')
+    localStorage.setItem('user', JSON.stringify(userData))
   }
-  function logout() { setIsLoggedIn(false); setUser(null) }
+  function logout() { 
+    setIsLoggedIn(false)
+    setUser(null)
+    localStorage.removeItem('isLoggedIn')
+    localStorage.removeItem('user')
+  }
 
 
   // 과제 삭제
