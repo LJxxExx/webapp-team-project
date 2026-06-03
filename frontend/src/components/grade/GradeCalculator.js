@@ -47,7 +47,7 @@ const LEVEL_COLOR = {
 }
 const LEVEL_LABEL = { safe: '안정', warn: '주의', danger: '위험' }
 
-const STORAGE_KEY = 'gradeCalculator_stats'
+
 
 // ─────────────────────────────────────────────
 // 순수 함수
@@ -157,13 +157,6 @@ function lectureToGradeCourse(lecture) {
   }
 }
 
-function loadStats() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : {}
-  } catch { return {} }
-}
-
 // 가중치 합계가 100인지 확인
 function weightSum(w) {
   return (Number(w.att) || 0) + (Number(w.hw) || 0) + (Number(w.mid) || 0) + (Number(w.final) || 0)
@@ -173,7 +166,7 @@ function weightSum(w) {
 // 컴포넌트
 // ─────────────────────────────────────────────
 
-export default function GradeCalculator({ isLoggedIn, savedLectures, assignments = [] }) {
+export default function GradeCalculator({ isLoggedIn, savedLectures, assignments = [], grades, setGrades }) {
 
   const baseCourses = useMemo(() => {
     if (savedLectures && savedLectures.length > 0) {
@@ -199,12 +192,8 @@ export default function GradeCalculator({ isLoggedIn, savedLectures, assignments
   }, [baseCourses, assignments])
 
   // stats: 과목 id → { absent, midExam, finalExam, weight }
-  const [stats, setStats] = useState(loadStats)
-
-  useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(stats)) }
-    catch { /* 저장 실패 무시 */ }
-  }, [stats])
+  const stats = grades || {}
+  const setStats = setGrades
 
   const [selectedId, setSelectedId] = useState(() => baseCourses[0]?.id)
 
