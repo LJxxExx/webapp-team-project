@@ -8,7 +8,6 @@ function formatClock(hour, minute = 0) {
 
 function formatRoom(room) {
     if (!room) return '';
-
     return room
         .replace(/^공학\d호관\s*/, '공')
         .replace(/^의양관\s*/, '의')
@@ -37,17 +36,15 @@ function getLectureCode(lecture) {
 function formatMeetingsFromLecture(lecture) {
     const meetings = lecture.meetings || [];
     if (meetings.length === 0) return formatRoom(lecture.room);
-
     return meetings
-        .map(meeting => `${meeting.day}${formatClock(meeting.startHour, meeting.startMinute)}~${formatClock(meeting.endHour, meeting.endMinute)}`)
+        .map(m => `${m.day}${formatClock(m.startHour, m.startMinute)}~${formatClock(m.endHour, m.endMinute)}`)
         .join(' / ') + ` ${formatRoom(lecture.room)}`;
 }
 
 function formatMeetingsFromEntries(entries) {
     if (entries.length === 0) return '';
-
     return entries
-        .map(entry => `${entry.day}${formatClock(entry.startHour, entry.startMinute)}~${formatClock(entry.endHour, entry.endMinute)}`)
+        .map(e => `${e.day}${formatClock(e.startHour, e.startMinute)}~${formatClock(e.endHour, e.endMinute)}`)
         .join(' / ') + ` ${formatRoom(entries[0].room)}`;
 }
 
@@ -86,8 +83,8 @@ function buildPracticeCourse(lectureId, planEntries, lectureCatalog) {
     };
 }
 
+
 const EnrollmentPage = ({ isLoggedIn, lectureCatalog = [], savedPlans }) => {
-    // 1. 수강신청 연습 및 서버시간 관련 로컬 상태 선언
     const [localActivePlan, setLocalActivePlan] = useState('plan1');
     const [practiceEnrolledIds, setPracticeEnrolledIds] = useState([]);
     const [securityCode, setSecurityCode] = useState('');
@@ -101,30 +98,28 @@ const EnrollmentPage = ({ isLoggedIn, lectureCatalog = [], savedPlans }) => {
     const [showResult, setShowResult] = useState(false);
     const [finalTime, setFinalTime] = useState('');
 
-    // 2. 선택한 로컬 탭(1안/2안)에 따른 시간표 데이터 연동
+    // 연습 기록 히스토리
+    const [practiceHistory, setPracticeHistory] = useState([]);
+    const [isRecord, setIsRecord] = useState(false);
+
     const planEntries = useMemo(() => savedPlans?.[localActivePlan] || [], [savedPlans, localActivePlan]);
-    
+
     const practiceCourses = useMemo(() => (
         uniqueLectureIds(planEntries).map(lectureId => buildPracticeCourse(lectureId, planEntries, lectureCatalog))
     ), [planEntries, lectureCatalog]);
 
-    const practiceCourseKey = practiceCourses.map(course => course.id).join('|');
-
-    // 3. 실시간 서버 시간 타이머 시계
+    // 실시간 서버 시간 타이머
     useEffect(() => {
-        const timer = setInterval(() => {
-            setServerTime(new Date());
-        }, 1000);
+        const timer = setInterval(() => setServerTime(new Date()), 1000);
         return () => clearInterval(timer);
     }, []);
 
     const generateCode = () => {
-        const code = Math.floor(Math.random() * 90 + 10).toString();
-        setSecurityCode(code);
+        setSecurityCode(Math.floor(Math.random() * 90 + 10).toString());
         setUserInputCode('');
     };
 
-    // 4. 로컬 탭(1안/2안)이 바뀔 때 연습 상태 깔끔하게 리셋
+    // 탭(1안/2안) 전환 시 연습 상태 리셋
     useEffect(() => {
         setPracticeEnrolledIds([]);
         setDirectId1('');
@@ -138,10 +133,9 @@ const EnrollmentPage = ({ isLoggedIn, lectureCatalog = [], savedPlans }) => {
     const availableCourses = practiceCourses.filter(course => !practiceEnrolledIds.includes(course.id));
     const enrolledCourses = practiceCourses.filter(course => practiceEnrolledIds.includes(course.id));
 
-    // 5. 기능 핸들러 함수들
     const handleStartPractice = () => {
         if (practiceCourses.length === 0) {
-            alert("시간표에 등록된 강의가 없습니다. 먼저 과목을 추가해 주세요!");
+            alert('시간표에 등록된 강의가 없습니다. 먼저 과목을 추가해 주세요!');
             return;
         }
         setPracticeEnrolledIds([]);
@@ -154,7 +148,7 @@ const EnrollmentPage = ({ isLoggedIn, lectureCatalog = [], savedPlans }) => {
     const handleStopPractice = () => {
         setIsPracticing(false);
         setStartTime(null);
-        alert("연습이 중단되었습니다.");
+        alert('연습이 중단되었습니다.');
     };
 
     const handleReset = () => {
@@ -162,23 +156,27 @@ const EnrollmentPage = ({ isLoggedIn, lectureCatalog = [], savedPlans }) => {
         setIsPracticing(false);
         setStartTime(null);
         setShowResult(false);
+        setPracticeHistory([]);
         generateCode();
-        alert("모든 목록이 초기화되었습니다.");
+        alert('모든 목록이 초기화되었습니다.');
     };
 
     const enrollCourse = (course) => {
-        const isAlreadyEnrolled = practiceEnrolledIds.includes(course.id);
-        if (isAlreadyEnrolled) return;
+        if (practiceEnrolledIds.includes(course.id)) return;
 
         const nextEnrolledIds = [...practiceEnrolledIds, course.id];
         setPracticeEnrolledIds(nextEnrolledIds);
         alert(`${course.name} 신청이 완료되었습니다.`);
 
-        // 모든 과목 다 신청했는지 확인 후 모달창 띄우기
         const remainingCount = practiceCourses.filter(c => !nextEnrolledIds.includes(c.id)).length;
         if (isPracticing && remainingCount === 0) {
             const duration = ((Date.now() - startTime) / 1000).toFixed(2);
             setFinalTime(duration);
+            setPracticeHistory(prev => {
+                const previousBest = prev.length > 0 ? Math.min(...prev.map(r => parseFloat(r.time))) : null;
+                setIsRecord(previousBest !== null && parseFloat(duration) < previousBest);
+                return [...prev, { round: prev.length + 1, time: duration }];
+            });
             setIsPracticing(false);
             setShowResult(true);
         }
@@ -186,7 +184,7 @@ const EnrollmentPage = ({ isLoggedIn, lectureCatalog = [], savedPlans }) => {
 
     const cancelCourse = (course) => {
         setPracticeEnrolledIds(prev => prev.filter(id => id !== course.id));
-        alert("삭제되었습니다.");
+        alert('삭제되었습니다.');
     };
 
     const handleAction = (action, course) => {
@@ -206,25 +204,20 @@ const EnrollmentPage = ({ isLoggedIn, lectureCatalog = [], savedPlans }) => {
                 alert('과목코드를 입력해 주세요.');
                 return;
             }
-
             if (!/^\d{5}$/.test(directId1) || !/^\d{2}$/.test(directId2)) {
                 alert('요청을 처리하는 중 오류가 발생했습니다. (과목 코드를 확인하세요)');
                 return;
             }
-
             const targetCode = `${directId1}-${directId2}`;
             const targetCourse = practiceCourses.find(item => item.displayCode === targetCode);
-
             if (!targetCourse) {
                 alert('요청을 처리하는 중 오류가 발생했습니다. (과목 코드를 확인하세요)');
                 return;
             }
-
             if (practiceEnrolledIds.includes(targetCourse.id)) {
                 alert('요청을 처리하는 중 오류가 발생했습니다. (과목 코드를 확인하세요)');
                 return;
             }
-
             enrollCourse(targetCourse);
             setDirectId1('');
             setDirectId2('');
@@ -235,13 +228,13 @@ const EnrollmentPage = ({ isLoggedIn, lectureCatalog = [], savedPlans }) => {
 
     return (
         <LoginRequiredSection isLoggedIn={isLoggedIn}>
-            {/* 🚨 다른 페이지 침범을 원천 봉쇄하는 마법의 단일 최상위 울타리 클래스 */}
             <div className="kmu-enroll-container">
-                
-                {/* 6. 연습 종료시 뜨는 결과창 모달 */}
+
+                {/* 연습 종료 결과 모달 */}
                 {showResult && (
                     <div className="result-modal-overlay">
                         <div className="result-modal">
+                            {isRecord && <div className="record-badge">신기록!</div>}
                             <h2>연습 종료</h2>
                             <p>모든 과목을 신청하는 데<br /><strong>{finalTime}초</strong> 걸렸습니다.</p>
                             <button onClick={() => setShowResult(false)}>확인</button>
@@ -249,7 +242,7 @@ const EnrollmentPage = ({ isLoggedIn, lectureCatalog = [], savedPlans }) => {
                     </div>
                 )}
 
-                {/* 7. 상단 서버 시간 및 연습 버튼 바 */}
+                {/* 상단 서버 시간 / 연습 버튼 바 */}
                 <div className="practice-header">
                     <div className="server-time-box">
                         <span className="time-label">현재 서버시간:</span>
@@ -264,16 +257,34 @@ const EnrollmentPage = ({ isLoggedIn, lectureCatalog = [], savedPlans }) => {
                     </div>
                 </div>
 
-                {/* 8. 1안 / 2안 / 초기화 선택 메뉴 바 */}
+                {/* 연습 기록 히스토리 바 (최근 5개) */}
+                {practiceHistory.length > 0 && (
+                    <div className="history-bar">
+                        <span className="history-label">연습 기록:</span>
+                        <span className="history-records">
+                            {practiceHistory.slice(-5).map((record, index, arr) => (
+                                <span key={record.round}>
+                                    {index > 0 && <span className="history-arrow"> → </span>}
+                                    <span className={`history-item${index === arr.length - 1 && isRecord ? ' history-item-record' : ''}`}>
+                                        {record.round}회차 {record.time}초
+                                        {index === arr.length - 1 && isRecord && ' 🏆'}
+                                    </span>
+                                </span>
+                            ))}
+                        </span>
+                    </div>
+                )}
+
+                {/* 1안 / 2안 / 초기화 선택 메뉴 바 */}
                 <div className="plan-selection-bar">
-                    <button 
-                        className={`btn-plan ${localActivePlan === 'plan1' ? 'active' : ''}`} 
+                    <button
+                        className={`btn-plan ${localActivePlan === 'plan1' ? 'active' : ''}`}
                         onClick={() => setLocalActivePlan('plan1')}
                     >
                         1안 보기
                     </button>
-                    <button 
-                        className={`btn-plan btn-plan-gray ${localActivePlan === 'plan2' ? 'active' : ''}`} 
+                    <button
+                        className={`btn-plan btn-plan-gray ${localActivePlan === 'plan2' ? 'active' : ''}`}
                         onClick={() => setLocalActivePlan('plan2')}
                     >
                         2안 보기
@@ -283,10 +294,10 @@ const EnrollmentPage = ({ isLoggedIn, lectureCatalog = [], savedPlans }) => {
                     </button>
                 </div>
 
-                {/* 9. 수강꾸러미 목록 테이블 영역 */}
+                {/* 수강꾸러미 신청과목 테이블 */}
                 <h3 className="enroll-title">❚ 수강꾸러미 신청과목</h3>
                 <p className="enroll-info-msg">
-                    {isPracticing ? "현재 연습이 진행 중입니다. 빠르게 신청하세요!" : "수강 꾸러미 신청과목 중 수강신청이 완료된 과목은 보이지 않습니다."}
+                    {isPracticing ? '현재 연습이 진행 중입니다. 빠르게 신청하세요!' : '수강 꾸러미 신청과목 중 수강신청이 완료된 과목은 보이지 않습니다.'}
                 </p>
 
                 <table className="enroll-table">
@@ -300,14 +311,16 @@ const EnrollmentPage = ({ isLoggedIn, lectureCatalog = [], savedPlans }) => {
                             <tr><td colSpan="9">신청 가능한 과목이 없습니다.</td></tr>
                         ) : availableCourses.map(course => (
                             <tr key={course.id}>
-                                <td></td><td>{course.displayCode}</td><td className="text-left">{course.name}</td><td>{course.credit}</td><td>{course.type}</td><td>{course.time}</td><td>{course.dayNight}</td><td>본교</td>
+                                <td></td><td>{course.displayCode}</td><td className="text-left">{course.name}</td>
+                                <td>{course.credit}</td><td>{course.type}</td><td>{course.time}</td>
+                                <td>{course.dayNight}</td><td>본교</td>
                                 <td><button className="btn-small" onClick={() => handleAction('enroll', course)}>신청</button></td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
 
-                {/* 10. 보안코드 입력 영역 */}
+                {/* 보안코드 입력 영역 */}
                 <div className="enroll-security-wrap">
                     <div className="security-code-entry">
                         <div className="security-box">
@@ -318,20 +331,21 @@ const EnrollmentPage = ({ isLoggedIn, lectureCatalog = [], savedPlans }) => {
                             type="text"
                             className="security-field"
                             value={userInputCode}
-                            onChange={(event) => setUserInputCode(event.target.value.replace(/\D/g, ''))}
+                            onChange={(e) => setUserInputCode(e.target.value.replace(/\D/g, ''))}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAction('direct')}
                             maxLength="2"
                         />
                     </div>
                     <span className="security-text">신청이나 추가, 삭제 시 왼쪽의 숫자를 반드시 입력해 주십시오.</span>
                 </div>
 
-                {/* 11. 직접 입력 및 수강신청 완료 목록 테이블 영역 */}
+                {/* 직접 입력 및 수강신청 완료 목록 */}
                 <h3 className="enroll-title">❚ 수강신청 과목</h3>
                 <div className="direct-add-row">
                     <div className="direct-inputs">
-                        <input type="text" className="input-5" value={directId1} onChange={(event) => setDirectId1(event.target.value.replace(/\D/g, ''))} maxLength="5" />
+                        <input type="text" className="input-5" value={directId1} onChange={(e) => setDirectId1(e.target.value.replace(/\D/g, ''))} maxLength="5" />
                         <span className="sep">-</span>
-                        <input type="text" className="input-2" value={directId2} onChange={(event) => setDirectId2(event.target.value.replace(/\D/g, ''))} maxLength="2" />
+                        <input type="text" className="input-2" value={directId2} onChange={(e) => setDirectId2(e.target.value.replace(/\D/g, ''))} maxLength="2" />
                         <span className="direct-msg">신청할 과목코드(5자리-2자리)를 입력한 후 '추가'버튼을 누르십시오.</span>
                     </div>
                     <button className="btn-add-submit" onClick={() => handleAction('direct')}>+ 추가</button>
@@ -348,7 +362,9 @@ const EnrollmentPage = ({ isLoggedIn, lectureCatalog = [], savedPlans }) => {
                             <tr><td colSpan="9">수강신청한 과목이 없습니다.</td></tr>
                         ) : enrolledCourses.map(course => (
                             <tr key={course.id}>
-                                <td></td><td>{course.displayCode}</td><td className="text-left">{course.name}</td><td>{course.credit}</td><td>{course.type}</td><td>{course.time}</td><td>{course.dayNight}</td><td>본교</td>
+                                <td></td><td>{course.displayCode}</td><td className="text-left">{course.name}</td>
+                                <td>{course.credit}</td><td>{course.type}</td><td>{course.time}</td>
+                                <td>{course.dayNight}</td><td>본교</td>
                                 <td><button className="btn-small btn-del" onClick={() => handleAction('cancel', course)}>삭제</button></td>
                             </tr>
                         ))}
