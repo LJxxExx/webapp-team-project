@@ -5,20 +5,21 @@
   margin: 0 auto;
 }
 
-.enroll-title {
+.kmu-enroll-container .enroll-title {
   color: #d00000;
   font-size: 14px;
   font-weight: bold;
   margin: 25px 0 5px 0;
 }
 
-.enroll-info-msg {
+.kmu-enroll-container .enroll-info-msg {
   color: #ff6600;
   font-size: 11px;
   margin-bottom: 10px;
 }
 
-.enroll-table {
+/* 테이블 공통 */
+.kmu-enroll-container .enroll-table {
   width: 100%;
   border-collapse: collapse;
   text-align: center;
@@ -27,26 +28,27 @@
   margin-bottom: 10px;
 }
 
-.enroll-table th {
+.kmu-enroll-container .enroll-table th {
   background: #f0f4f8;
   color: #3b5998;
   border: 1px solid #ccc;
   padding: 10px 0;
 }
 
-.enroll-table td {
+.kmu-enroll-container .enroll-table td {
   border: 1px solid #ddd;
   padding: 8px 5px;
   color: #666;
 }
 
-.text-left {
+.kmu-enroll-container .text-left {
   text-align: left;
   padding-left: 10px !important;
   color: #333 !important;
 }
 
-.enroll-security-wrap {
+/* 보안코드 영역 */
+.kmu-enroll-container .enroll-security-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -57,7 +59,7 @@
   margin: 16px 0 22px;
 }
 
-.security-code-entry {
+.kmu-enroll-container .security-code-entry {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -66,7 +68,7 @@
   background: #d8d8d8;
 }
 
-.security-box {
+.kmu-enroll-container .security-box {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -78,7 +80,7 @@
   margin-right: 0;
 }
 
-.code-digit {
+.kmu-enroll-container .code-digit {
   width: 20px;
   height: 24px;
   display: flex;
@@ -90,17 +92,17 @@
   font-family: 'Courier New';
 }
 
-.bg-green {
+.kmu-enroll-container .bg-green {
   background: transparent;
   color: #8a2a2a;
 }
 
-.bg-gray {
+.kmu-enroll-container .bg-gray {
   background: transparent;
   color: #226622;
 }
 
-.security-field {
+.kmu-enroll-container .security-field {
   width: 52px;
   height: 22px;
   border: 1px solid #9aa6b2;
@@ -110,13 +112,14 @@
   margin-right: 0;
 }
 
-.security-text {
+.kmu-enroll-container .security-text {
   color: #d00000;
   font-size: 11px;
   font-weight: bold;
 }
 
-.direct-add-row {
+/* 직접입력 영역 */
+.kmu-enroll-container .direct-add-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -126,19 +129,19 @@
   margin-bottom: 10px;
 }
 
-.direct-inputs {
+.kmu-enroll-container .direct-inputs {
   display: flex;
   align-items: center;
   gap: 2px;
   min-width: 0;
 }
 
-.sep {
+.kmu-enroll-container .sep {
   color: #555;
   font-size: 11px;
 }
 
-.direct-msg {
+.kmu-enroll-container .direct-msg {
   margin-left: 4px;
   color: #5f493d;
   font-size: 11px;
@@ -146,21 +149,21 @@
   white-space: nowrap;
 }
 
-.input-5 {
+.kmu-enroll-container .input-5 {
   width: 65px;
   height: 24px;
   border: 1px solid #aaa;
   text-align: center;
 }
 
-.input-2 {
+.kmu-enroll-container .input-2 {
   width: 35px;
   height: 24px;
   border: 1px solid #aaa;
   text-align: center;
 }
 
-.btn-add-submit {
+.kmu-enroll-container .btn-add-submit {
   background: #004b93;
   color: white;
   border: none;
@@ -170,7 +173,7 @@
   cursor: pointer;
 }
 
-.btn-small {
+.kmu-enroll-container .btn-small {
   background: #e5e5e5;
   border: 1px solid #a7a7a7;
   color: #222;
@@ -179,18 +182,15 @@
   font-size: 11px;
 }
 
-.btn-small:hover {
+.kmu-enroll-container .btn-small:hover {
   background: #d7d7d7;
 }
 
-.btn-del {
+.kmu-enroll-container .btn-del {
   color: #d00000;
 }
 
-
-
-
-
+/* 상단 헤더 바 (서버시간 + 카운트다운 + 연습버튼) */
 .kmu-enroll-container .practice-header {
   display: flex;
   justify-content: space-between;
@@ -211,16 +211,17 @@
   font-size: 12px;
   color: #5f493d;
   font-weight: bold;
-  margin-right: 10px;
+  margin-right: 6px;
 }
 
 .kmu-enroll-container .time-value {
-  font-size: 18px; 
+  font-size: 18px;
   font-weight: bold;
   color: #d00000;
   font-family: 'Courier New', monospace;
   line-height: 1;
 }
+
 
 .kmu-enroll-container .btn-start {
   background: #004b93;
@@ -242,6 +243,49 @@
   cursor: pointer;
 }
 
+/* 연습 기록 히스토리 바 */
+.kmu-enroll-container .history-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  background: #fffbe6;
+  border: 1px solid #e8c840;
+  padding: 6px 14px;
+  margin-bottom: 10px;
+  font-size: 11px;
+}
+
+.kmu-enroll-container .history-label {
+  font-weight: bold;
+  color: #7a5f00;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.kmu-enroll-container .history-records {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  color: #555;
+}
+
+.kmu-enroll-container .history-arrow {
+  color: #bbb;
+}
+
+.kmu-enroll-container .history-item {
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  color: #004b93;
+}
+
+.kmu-enroll-container .history-item-record {
+  color: #d00000;
+}
+
+/* 1안/2안/초기화 선택 바 */
 .kmu-enroll-container .plan-selection-bar {
   display: flex;
   justify-content: flex-end;
@@ -282,6 +326,7 @@
   background: #f8d7da;
 }
 
+/* 결과 모달 */
 .kmu-enroll-container .result-modal-overlay {
   position: fixed;
   top: 0;
@@ -300,8 +345,20 @@
   padding: 30px 50px;
   border: 2px solid #3b5998;
   text-align: center;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
   min-width: 320px;
+}
+
+.kmu-enroll-container .result-modal .record-badge {
+  display: inline-block;
+  background: #d00000;
+  color: white;
+  font-size: 13px;
+  font-weight: bold;
+  padding: 3px 14px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  letter-spacing: 1px;
 }
 
 .kmu-enroll-container .result-modal h2 {
@@ -316,13 +373,14 @@
   font-size: 12px;
   color: #666;
   line-height: 1.6;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 
 .kmu-enroll-container .result-modal strong {
   font-size: 18px;
   color: #d00000;
 }
+
 
 .kmu-enroll-container .result-modal button {
   background: #004b93;
