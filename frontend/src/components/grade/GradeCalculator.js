@@ -162,15 +162,7 @@ function weightSum(w) {
   return (Number(w.att) || 0) + (Number(w.hw) || 0) + (Number(w.mid) || 0) + (Number(w.final) || 0)
 }
 
-<<<<<<< HEAD
-export default function GradeCalculator({ isLoggedIn, savedLectures, assignments = [] }) {
-=======
-// ─────────────────────────────────────────────
-// 컴포넌트
-// ─────────────────────────────────────────────
-
 export default function GradeCalculator({ isLoggedIn, savedLectures, assignments = [], grades, setGrades }) {
->>>>>>> 6849a543fd38278f76f76bf0ff72025c4cee445f
 
   const baseCourses = useMemo(() => {
     if (savedLectures && savedLectures.length > 0) {

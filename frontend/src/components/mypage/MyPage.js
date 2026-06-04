@@ -1,15 +1,37 @@
 import React from 'react'
 import './MyPage.css'
 
-export default function MyPage({ isLoggedIn, user, onLogin, onLogout }) {
+export default function MyPage({ isLoggedIn, user, onLogin, onLogout, onUpdateUser }) {
   if (!isLoggedIn) {
     return (
       <div className="mypage-login">
         <p className="mypage-login-msg">마이페이지를 보려면 로그인이 필요합니다.</p>
-        <button className="btn-login" onClick={onLogin}>테스트용 로그인</button>
+        <button className="btn-login" onClick={onLogin}>로그인</button>
       </div>
     )
   }
+
+  const handleGradeChange = (e) => {
+    if (onUpdateUser) {
+      onUpdateUser({ grade: e.target.value })
+    }
+  }
+
+  const gradeOptions = ['1학년', '2학년', '3학년', '4학년']
+  if (user.dept === '건축공학과') {
+    gradeOptions.push('5학년')
+  }
+  gradeOptions.push('대학원')
+
+  const currentGrade = user.grade || '1학년'
+
+  const currentSemester = (() => {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = now.getMonth() + 1
+    return `${year}년 ${month <= 6 ? 1 : 2}학기`
+  })()
+
   return (
     <div className="mypage">
       <div className="mypage-card">
@@ -21,23 +43,26 @@ export default function MyPage({ isLoggedIn, user, onLogin, onLogout }) {
         <button className="btn-logout" onClick={onLogout}>로그아웃</button>
       </div>
       <div className="mypage-info-grid">
-        {[
-          ['학번', user.id],
-          ['학과', user.dept],
-          ['학년', user.grade + '학년'],
-          ['학기', (() => {
-              const now = new Date();
-              const year = now.getFullYear();
-              const month = now.getMonth() + 1;
-              const sem = month <= 6 ? 1 : 2;
-            return `${year}년 ${sem}학기`;
-          })()],
-        ].map(([label, val]) => (
-          <div key={label} className="mypage-info-item">
-            <span className="mpi-label">{label}</span>
-            <span className="mpi-val">{val}</span>
-          </div>
-        ))}
+        <div className="mypage-info-item">
+          <span className="mpi-label">학번</span>
+          <span className="mpi-val">{user.id}</span>
+        </div>
+        <div className="mypage-info-item">
+          <span className="mpi-label">학과</span>
+          <span className="mpi-val">{user.dept}</span>
+        </div>
+        <div className="mypage-info-item">
+          <span className="mpi-label">학년</span>
+          <select className="mpi-select" value={currentGrade} onChange={handleGradeChange}>
+            {gradeOptions.map(opt => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        </div>
+        <div className="mypage-info-item">
+          <span className="mpi-label">학기</span>
+          <span className="mpi-val">{currentSemester}</span>
+        </div>
       </div>
     </div>
   )
