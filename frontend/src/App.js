@@ -74,6 +74,7 @@ function normalizeAssignment(item, index) {
           ? '높음'
           : '보통'),
     progress: Number(item.progress ?? 0),
+    assignmentType: item.assignmentType ?? '일반',
     isCompleted: item.isCompleted ?? item.done ?? false,
     memo: item.memo ?? '',
     mistakeNote: item.mistakeNote ?? '',
@@ -244,9 +245,11 @@ export default function App() {
   // 과제 삭제
   function deleteAssignment(assignmentId) {
     if (!isLoggedIn) return
-    setAssignments(prev =>
-      prev.filter(assignment => assignment.id !== assignmentId)
-    )
+    setAssignments(prev => {
+      const updated = prev.filter(assignment => assignment.id !== assignmentId)
+      saveUserData({ ...dataRef.current, assignments: updated })
+      return updated
+    })
   }
 
   // 과제 제출 완료 / 완료 취소
@@ -309,6 +312,7 @@ export default function App() {
           <AssignmentPage
             isLoggedIn={isLoggedIn}
             assignments={assignments}
+            savedLectures={savedLectures}
             openDate={openAssignmentDate}
             onClearOpenDate={clearOpenAssignmentDate}
             onAddAssignment={(newAssign) => {
@@ -316,10 +320,16 @@ export default function App() {
               const created = {
                 id: newId,
                 title: newAssign.title,
+                subject: newAssign.subject,
                 dueDate: newAssign.dueDate,
                 dueTime: newAssign.dueTime || '23:59',
                 priority: newAssign.priority || '보통',
-                isCompleted: false
+                progress: Number(newAssign.progress ?? 0),
+                assignmentType: newAssign.assignmentType ?? '일반',
+                isCompleted: false,
+                memo: newAssign.memo ?? '',
+                mistakeNote: newAssign.mistakeNote ?? '',
+                checklist: newAssign.checklist ?? []
               }
               const updated = [...assignments, normalizeAssignment(created, assignments.length)]
               setAssignments(updated)
