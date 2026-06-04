@@ -25,7 +25,13 @@ export default function MyPage({ isLoggedIn, user, onLogin, onLogout }) {
           ['학번', user.id],
           ['학과', user.dept],
           ['학년', user.grade + '학년'],
-          ['학기', '2026년 1학기'],
+          ['학기', (() => {
+              const now = new Date();
+              const year = now.getFullYear();
+              const month = now.getMonth() + 1;
+              const sem = month <= 6 ? 1 : 2;
+            return `${year}년 ${sem}학기`;
+          })()],
         ].map(([label, val]) => (
           <div key={label} className="mypage-info-item">
             <span className="mpi-label">{label}</span>

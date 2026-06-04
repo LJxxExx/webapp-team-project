@@ -26,6 +26,24 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  justify-content: center;
+}
+
+.login-info-auth {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.user-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.user-text {
+  font-size: 14px;
+  color: #333;
 }
 .btn-login {
   background: #2563eb;

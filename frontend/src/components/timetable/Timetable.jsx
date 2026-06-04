@@ -332,7 +332,7 @@ function getCourseStyle(course) {
   }
 }
 
-export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans, setSavedPlans, activePlan, setActivePlan }) {
+export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans, setSavedPlans, activePlan, setActivePlan, onSaveData }) {
   const [courses, setCourses] = useState(savedPlans[activePlan] || [])
   const savedPlansRef = useRef(savedPlans)
   const [isSettingOpen, setIsSettingOpen] = useState(false)
@@ -835,7 +835,8 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
   }
 
   function saveTimetable() {
-    // 추가/삭제는 현재 1안/2안 state에 이미 반영되어 있으므로 여기서는 팝업만 닫음
+    // 추가/삭제는 현재 1안/2안 state에 이미 반영되어 있으므로 여기서는 팝업만 닫고 저장 콜백 호출
+    if (onSaveData) onSaveData()
     closeSettingPanel()
     setToastMessage(`${activePlan === 'plan1' ? '1안' : '2안'}이 저장되었습니다.`)
   }
