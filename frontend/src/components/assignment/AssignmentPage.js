@@ -2,18 +2,46 @@ import React, { useEffect, useState } from 'react'
 import LoginRequiredSection from '../common/LoginRequiredSection'
 import './AssignmentPage.css'
 
-const defaultChecklist = [
-  '제출 파일 업로드 확인',
-  '파일명 형식 확인',
-  '제출 형식 확인',
-  '마감 시간 확인',
-  '과제 요구사항 재확인',
-  '이름/학번 기재 확인',
-  '제출 후 최종 확인',
-]
+const checklistTemplates = {
+  일반: [
+    '제출 파일 업로드 확인',
+    '파일명 형식 확인',
+    '제출 형식 확인',
+    '마감 시간 확인',
+    '과제 요구사항 재확인',
+    '이름/학번 기재 확인',
+    '제출 후 최종 확인',
+  ],
+  보고서: [
+    '과제 요구사항 재확인',
+    '표지/이름/학번 기재 확인',
+    '목차와 문단 흐름 확인',
+    '참고문헌/출처 표기 확인',
+    'PDF 변환 및 파일명 확인',
+    '제출 후 업로드 상태 확인',
+  ],
+  코딩: [
+    '실행 오류 없는지 확인',
+    '필수 기능 작동 확인',
+    '예외 상황 테스트',
+    '코드 주석/가독성 확인',
+    '캡처 자료 또는 실행 결과 준비',
+    '압축 파일명과 제출 형식 확인',
+  ],
+  발표: [
+    'PPT 전체 흐름 확인',
+    '발표 대본 또는 키워드 정리',
+    '시연 자료 준비',
+    '팀원 역할 분담 확인',
+    '발표 시간 확인',
+    '최종 제출 파일 확인',
+  ],
+}
 
-function createChecklist() {
-  return defaultChecklist.map((text, index) => ({
+function createChecklist(type = '일반') {
+  const template = checklistTemplates[type] || checklistTemplates.일반
+
+  return template.map((text, index) => ({
     id: index + 1,
     text,
     checked: false,
@@ -108,6 +136,68 @@ function getUpcomingCompletionRate(assignments) {
   return Math.round((completedCount / upcomingAssignments.length) * 100)
 }
 
+function getAssignmentSummary(assignments) {
+  const incomplete = assignments.filter(a => !a.isCompleted)
+
+  return {
+    today: incomplete.filter(a => !isOverdue(a) && getDaysLeft(a.dueDate) === 0).length,
+    upcoming: incomplete.filter(a => !isOverdue(a) && getDaysLeft(a.dueDate) > 0 && getDaysLeft(a.dueDate) <= 3).length,
+    overdue: incomplete.filter(a => isOverdue(a)).length,
+  }
+}
+
+function getAssignmentStats(assignments) {
+  const completed = assignments.filter(a => a.isCompleted).length
+  const incomplete = assignments.length - completed
+  const overdue = assignments.filter(a => !a.isCompleted && isOverdue(a)).length
+  const urgent = assignments.filter(a => {
+    const riskInfo = getRiskInfo(a)
+    return !a.isCompleted && (riskInfo.label === '긴급' || riskInfo.label === '마감 지남')
+  }).length
+
+  const averageChecklistRate = assignments.length === 0
+    ? 0
+    : Math.round(
+        assignments.reduce((sum, assignment) => sum + getChecklistRate(assignment.checklist), 0) / assignments.length
+      )
+
+  return { completed, incomplete, overdue, urgent, averageChecklistRate }
+}
+
+function getSubjectStats(assignments) {
+  const grouped = new Map()
+
+  assignments.forEach(assignment => {
+    const subjectName = assignment.subject || '미지정 과목'
+    const current = grouped.get(subjectName) || { subject: subjectName, total: 0, completed: 0 }
+    current.total += 1
+    if (assignment.isCompleted) current.completed += 1
+    grouped.set(subjectName, current)
+  })
+
+  return Array.from(grouped.values())
+}
+
+function getMistakeHints(assignments) {
+  const seen = new Set()
+
+  return assignments
+    .map(assignment => assignment.mistakeNote?.trim())
+    .filter(Boolean)
+    .filter(note => {
+      if (seen.has(note)) return false
+      seen.add(note)
+      return true
+    })
+    .slice(0, 5)
+}
+
+function getOverdueAssignments(assignments) {
+  return assignments
+    .filter(assignment => !assignment.isCompleted && isOverdue(assignment))
+    .sort((a, b) => new Date(`${a.dueDate}T${a.dueTime || '23:59'}`) - new Date(`${b.dueDate}T${b.dueTime || '23:59'}`))
+}
+
 function getRiskInfo(assignment) {
   if (assignment.isCompleted) {
     return { label: '완료', className: 'ap-risk-completed' }
@@ -177,6 +267,7 @@ function ProgressCircle({ progress, title }) {
 export default function AssignmentPage({
   isLoggedIn,
   assignments = [],
+  savedLectures = [],
   openDate,
   onClearOpenDate,
   onAddAssignment,
@@ -200,6 +291,7 @@ export default function AssignmentPage({
   const [dueTime, setDueTime] = useState('23:59')
   const [progress, setProgress] = useState(0)
   const [priority, setPriority] = useState('보통')
+  const [assignmentType, setAssignmentType] = useState('일반')
   const [memo, setMemo] = useState('')
   const [mistakeNote, setMistakeNote] = useState('')
   const [checklist, setChecklist] = useState(createChecklist())
@@ -222,6 +314,7 @@ export default function AssignmentPage({
       setDueTime(editingAssignment.dueTime)
       setProgress(editingAssignment.progress)
       setPriority(editingAssignment.priority)
+      setAssignmentType(editingAssignment.assignmentType || '일반')
       setMemo(editingAssignment.memo)
       setMistakeNote(editingAssignment.mistakeNote)
       setChecklist(editingAssignment.checklist || createChecklist())
@@ -237,9 +330,10 @@ export default function AssignmentPage({
     setDueTime('23:59')
     setProgress(0)
     setPriority('보통')
+    setAssignmentType('일반')
     setMemo('')
     setMistakeNote('')
-    setChecklist(createChecklist())
+    setChecklist(createChecklist('일반'))
     setCustomChecklistText('')
   }
 
@@ -291,6 +385,35 @@ export default function AssignmentPage({
     )
   }
 
+  function applyChecklistTemplate() {
+    const ok = checklist.some(item => item.checked || item.text.trim() !== '')
+      ? window.confirm('현재 체크리스트를 선택한 과제 유형 템플릿으로 교체할까요?')
+      : true
+
+    if (!ok) return
+    setChecklist(createChecklist(assignmentType))
+  }
+
+  function addMistakeHint(note) {
+    setMistakeNote(prev => {
+      if (!prev.trim()) return note
+      if (prev.includes(note)) return prev
+      return `${prev}
+${note}`
+    })
+  }
+
+  function handleToggleCompleteWithChecklist(assignment) {
+    const checklistRate = getChecklistRate(assignment.checklist)
+
+    if (!assignment.isCompleted && checklistRate < 100) {
+      const ok = window.confirm(`체크리스트가 아직 ${checklistRate}%만 완료되었습니다. 그래도 제출 완료 처리할까요?`)
+      if (!ok) return
+    }
+
+    onToggleComplete(assignment.id)
+  }
+
   function handleSubmit(e) {
     e.preventDefault()
 
@@ -312,6 +435,7 @@ export default function AssignmentPage({
       dueTime,
       progress: Number(progress),
       priority,
+      assignmentType,
       isCompleted: editingAssignment
         ? editingAssignment.isCompleted ?? false
         : false,
@@ -361,6 +485,11 @@ export default function AssignmentPage({
   }
 
   const selectedAssignments = assignments.filter(a => a.dueDate === selectedDate)
+  const assignmentSummary = getAssignmentSummary(assignments)
+  const assignmentStats = getAssignmentStats(assignments)
+  const subjectStats = getSubjectStats(assignments)
+  const mistakeHints = getMistakeHints(assignments)
+  const overdueAssignments = getOverdueAssignments(assignments)
 
   const totalCompletionRate = getTotalCompletionRate(assignments)
   const upcomingCompletionRate = getUpcomingCompletionRate(assignments)
@@ -378,6 +507,26 @@ export default function AssignmentPage({
             </div>
 
             <span className="ap-count-badge">총 {assignments.length}개 과제</span>
+          </div>
+
+          <div className="ap-summary-grid">
+            <div className="ap-summary-card ap-summary-today">
+              <span>오늘 마감</span>
+              <strong>{assignmentSummary.today}</strong>
+              <small>개</small>
+            </div>
+
+            <div className="ap-summary-card ap-summary-soon">
+              <span>3일 이내</span>
+              <strong>{assignmentSummary.upcoming}</strong>
+              <small>개</small>
+            </div>
+
+            <div className="ap-summary-card ap-summary-overdue">
+              <span>마감 지남</span>
+              <strong>{assignmentSummary.overdue}</strong>
+              <small>개</small>
+            </div>
           </div>
 
           <div className="ap-card">
@@ -466,6 +615,64 @@ export default function AssignmentPage({
             <ProgressCircle progress={totalCompletionRate} title="전체 과제 완료율" />
             <ProgressCircle progress={upcomingCompletionRate} title="남은 과제 완료율" />
           </div>
+
+          <div className="ap-card ap-stats-card">
+            <h3>과제 통계</h3>
+
+            <div className="ap-stats-grid">
+              <div>
+                <span>완료</span>
+                <strong>{assignmentStats.completed}</strong>
+              </div>
+
+              <div>
+                <span>미완료</span>
+                <strong>{assignmentStats.incomplete}</strong>
+              </div>
+
+              <div>
+                <span>긴급/마감지남</span>
+                <strong>{assignmentStats.urgent}</strong>
+              </div>
+
+              <div>
+                <span>평균 체크리스트</span>
+                <strong>{assignmentStats.averageChecklistRate}%</strong>
+              </div>
+            </div>
+
+            {subjectStats.length > 0 && (
+              <div className="ap-subject-stats">
+                {subjectStats.map(item => (
+                  <span key={item.subject}>
+                    {item.subject}: {item.completed}/{item.total} 완료
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {overdueAssignments.length > 0 && (
+            <div className="ap-card ap-overdue-list-card">
+              <h3>마감 지난 미완료 과제</h3>
+
+              <div className="ap-overdue-list">
+                {overdueAssignments.map(assignment => (
+                  <button
+                    key={assignment.id}
+                    type="button"
+                    className="ap-overdue-list-item"
+                    onClick={() => selectDate(assignment.dueDate)}
+                  >
+                    <strong>{assignment.title}</strong>
+                    <span>
+                      {assignment.subject} · {getDdayText(assignment.dueDate)} · {assignment.dueTime}까지
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -506,10 +713,21 @@ export default function AssignmentPage({
                 <label>과목명</label>
                 <input
                   type="text"
+                  list="ap-subject-options"
                   value={subject}
-                  placeholder="예: 운영체제"
+                  placeholder="시간표 과목을 선택하거나 직접 입력하세요."
                   onChange={e => setSubject(e.target.value)}
                 />
+
+                <datalist id="ap-subject-options">
+                  {savedLectures.map(lecture => (
+                    <option key={lecture.id} value={lecture.name} />
+                  ))}
+                </datalist>
+
+                <small className="ap-form-help">
+                  시간표 과목명을 그대로 선택하면 학점계산기의 과제 제출률과 정확하게 연동됩니다.
+                </small>
               </div>
 
               <div className="ap-form-row">
@@ -556,6 +774,26 @@ export default function AssignmentPage({
               </div>
 
               <div className="ap-form-group">
+                <label>과제 유형 / 체크리스트 템플릿</label>
+
+                <div className="ap-template-row">
+                  <select value={assignmentType} onChange={e => setAssignmentType(e.target.value)}>
+                    {Object.keys(checklistTemplates).map(type => (
+                      <option key={type}>{type}</option>
+                    ))}
+                  </select>
+
+                  <button type="button" onClick={applyChecklistTemplate}>
+                    템플릿 적용
+                  </button>
+                </div>
+
+                <small className="ap-form-help">
+                  보고서, 코딩, 발표 유형에 맞는 실수 예방 체크리스트를 빠르게 불러올 수 있습니다.
+                </small>
+              </div>
+
+              <div className="ap-form-group">
                 <label>메모</label>
                 <textarea
                   value={memo}
@@ -571,10 +809,25 @@ export default function AssignmentPage({
                   placeholder="예: 지난번에 파일명을 잘못 제출함, 마감 시간을 착각함"
                   onChange={e => setMistakeNote(e.target.value)}
                 />
+
+                {mistakeHints.length > 0 && (
+                  <div className="ap-mistake-hints">
+                    <span>이전 실수 불러오기</span>
+
+                    <div>
+                      {mistakeHints.map(note => (
+                        <button key={note} type="button" onClick={() => addMistakeHint(note)}>
+                          {note.length > 18 ? `${note.slice(0, 18)}...` : note}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="ap-form-group">
                 <label>개인 맞춤 체크리스트 추가</label>
+
                 <div className="ap-custom-checklist-row">
                   <input
                     type="text"
@@ -601,6 +854,7 @@ export default function AssignmentPage({
                           checked={item.checked}
                           onChange={() => toggleFormChecklist(item.id)}
                         />
+
                         <span className={item.checked ? 'ap-checked-text' : ''}>
                           {item.text}
                         </span>
@@ -702,6 +956,7 @@ export default function AssignmentPage({
                       <span>{getDdayText(assignment.dueDate)}</span>
                       <span>{assignment.dueTime}까지</span>
                       <span>중요도: {assignment.priority}</span>
+                      <span>유형: {assignment.assignmentType || '일반'}</span>
                       <span>기존 진행도: {assignment.progress}%</span>
                       <span>체크리스트: {checklistRate}%</span>
                     </div>
@@ -741,6 +996,7 @@ export default function AssignmentPage({
                                 handleChecklistChange(assignment.id, item.id)
                               }
                             />
+
                             <span className={item.checked ? 'ap-checked-text' : ''}>
                               {item.text}
                             </span>
@@ -756,7 +1012,7 @@ export default function AssignmentPage({
                             ? 'ap-small-btn ap-complete-cancel-btn'
                             : 'ap-small-btn ap-complete-btn'
                         }
-                        onClick={() => onToggleComplete(assignment.id)}
+                        onClick={() => handleToggleCompleteWithChecklist(assignment)}
                       >
                         {assignment.isCompleted ? '완료 취소' : '제출 완료'}
                       </button>

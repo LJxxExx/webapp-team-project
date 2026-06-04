@@ -1,24 +1,42 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
-/node_modules
-frontend/node_modules/
-/.pnp
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp
 .pnp.js
 
-# testing
-/coverage
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
 
-# production
-/build
-
-# misc
-.DS_Store
+# Environment
+.env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# Build & Testing
+frontend/build/
+frontend/coverage/
+coverage/
+build/
+dist/
+
+# Data
+backend/users_data.json
+
+# OS & IDE
+.DS_Store
+.vscode/
+.idea/
+
+
+# Claude (preview/local)
+.claude/

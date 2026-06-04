@@ -36,7 +36,7 @@
 /* 본문 레이아웃 */
 .gc-content {
   display: grid;
-  grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
+  grid-template-columns: minmax(300px, 340px) minmax(0, 1fr);
   gap: 16px;
   min-width: 0;
 }
@@ -44,14 +44,15 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-width: 0;
   background: #f5f7fa;
   border: 1px solid #dde3ea;
   border-radius: 10px;
   padding: 14px;
-  overflow: visible;
 }
-.gc-col-label { font-size: 11px; color: #888; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 4px; }
+.gc-col-label {
+  font-size: 11px; color: #888; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 4px;
+}
 
 /* 강의 카드 */
 .gc-course-card {
@@ -65,12 +66,7 @@
   transition: border-color 0.15s, outline-color 0.15s;
 }
 .gc-course-card:hover { border-color: #9ca3af; }
-.gc-course-card.selected {
-  background: #fff;
-  border-color: #1a1a1a;
-  outline-color: #1a1a1a;
-  box-shadow: none;
-}
+.gc-course-card.selected { border-color: #1a1a1a; outline-color: #1a1a1a; }
 .gcc-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
 .gcc-name { font-size: 13px; font-weight: 500; }
 .gcc-credit { font-size: 11px; color: #aaa; }
@@ -92,6 +88,7 @@
   border: 1px solid #e5e7eb;
   border-radius: 10px;
   padding: 18px 20px;
+  overflow-y: auto;
 }
 .gcd-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
 .gcd-title { font-size: 15px; font-weight: 600; }
@@ -111,17 +108,113 @@
 .gcd-grade-gpa-small { font-size: 9px; color: #aaa; margin-top: 1px; }
 .gcd-grade-cell.active .gcd-grade-gpa-small { color: #ccc; }
 
-.gcd-stats {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px;
-}
+.gcd-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
 .gcd-stat { background: #f8f9fa; border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; }
 .gcd-stat-label { font-size: 11px; color: #888; }
 .gcd-stat-val { font-size: 18px; font-weight: 600; }
 
-.gcd-section-label { font-size: 11px; color: #888; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
-.gcd-inputs { display: flex; flex-direction: column; gap: 7px; }
-.gcd-input-row { display: flex; align-items: center; gap: 8px; }
-.gcd-input-label { font-size: 12px; color: #666; flex: 1; }
+/* ── 성적 반영 비율 (가중치) ── */
+.gcd-weight-sum {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  font-style: normal;
+}
+.gcd-weight-sum.ok    { color: #639922; }
+.gcd-weight-sum.error { color: #E24B4A; }
+
+.gcd-weight-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  margin-bottom: 16px;
+}
+.gcd-weight-row { display: flex; flex-direction: column; gap: 4px; }
+.gcd-weight-label { font-size: 11px; color: #666; }
+.gcd-weight-input-wrap { display: flex; align-items: center; gap: 4px; }
+.gcd-weight-input {
+  width: 56px; padding: 4px 6px; font-size: 13px;
+  border: 1px solid #d1d5db; border-radius: 6px;
+  text-align: right; outline: none;
+  transition: border-color 0.15s;
+}
+.gcd-weight-input:focus { border-color: #6b7280; }
+.gcd-weight-input.error { border-color: #E24B4A; }
+.gcd-weight-pct { font-size: 12px; color: #888; }
+.gcd-weight-bar-track {
+  height: 4px; background: #e5e7eb; border-radius: 99px; overflow: hidden;
+}
+.gcd-weight-bar-fill {
+  height: 100%; background: #6b7280; border-radius: 99px; transition: width 0.3s ease;
+}
+
+/* 위험도 게이지 */
+.gcd-risk-gauge { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.gcd-risk-gauge-track { flex: 1; height: 10px; background: #e5e7eb; border-radius: 99px; overflow: hidden; }
+.gcd-risk-gauge-fill { height: 100%; border-radius: 99px; transition: width 0.5s ease, background 0.3s ease; }
+.gcd-risk-gauge-label { font-size: 12px; font-weight: 600; min-width: 64px; text-align: right; }
+
+/* 섹션 레이블 */
+.gcd-section-label {
+  font-size: 11px; color: #888; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  margin-bottom: 8px;
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* ── 가중치 설정 그리드 (신규) ── */
+.gcd-weight-sum {
+  font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 99px;
+  text-transform: none; letter-spacing: 0;
+}
+.gcd-weight-sum.ok     { background: #EAF3DE; color: #3B6D11; }
+.gcd-weight-sum.error  { background: #FCEBEB; color: #A32D2D; }
+
+.gcd-weight-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f8f9fa;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.gcd-weight-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gcd-weight-label {
+  font-size: 12px; color: #555; width: 56px; flex-shrink: 0;
+}
+.gcd-weight-input-wrap {
+  display: flex; align-items: center; gap: 3px; flex-shrink: 0;
+}
+.gcd-weight-input {
+  width: 52px; padding: 4px 6px; font-size: 13px; font-weight: 500;
+  border: 1px solid #d1d5db; border-radius: 6px;
+  text-align: right; outline: none;
+  transition: border-color 0.15s;
+}
+.gcd-weight-input:focus { border-color: #6b7280; }
+.gcd-weight-input.error { border-color: #E24B4A; }
+.gcd-weight-pct { font-size: 12px; color: #888; }
+
+/* 가중치 비율 시각화 바 */
+.gcd-weight-bar-track {
+  flex: 1; height: 6px; background: #e5e7eb; border-radius: 99px; overflow: hidden;
+}
+.gcd-weight-bar-fill {
+  height: 100%; background: #6b7280; border-radius: 99px;
+  transition: width 0.3s ease;
+}
+
+/* 실적 입력 */
+.gcd-inputs { display: flex; flex-direction: column; gap: 10px; }
+.gcd-input-row { display: flex; align-items: flex-start; gap: 8px; }
+.gcd-input-label { font-size: 12px; color: #666; flex: 1; padding-top: 6px; }
+.gcd-input-field-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
 .gcd-input-field {
   width: 80px; padding: 5px 7px; font-size: 13px;
   border: 1px solid #d1d5db; border-radius: 6px;
@@ -129,8 +222,18 @@
   transition: border-color 0.15s;
 }
 .gcd-input-field:focus { border-color: #6b7280; }
+.gcd-input-field.error { border-color: #E24B4A; }
+.gcd-input-error { font-size: 10px; color: #E24B4A; text-align: right; white-space: nowrap; }
+
+/* 과제 제출률 */
+.gcd-hw-rate-display { display: flex; align-items: center; gap: 8px; flex: 1; flex-wrap: wrap; }
+.gcd-hw-rate-bar-track { flex: 1; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; min-width: 60px; }
+.gcd-hw-rate-bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s ease; }
+.gcd-hw-rate-pct { font-size: 13px; font-weight: 600; color: #333; min-width: 36px; text-align: right; }
+.gcd-hw-rate-none { font-size: 12px; color: #aaa; font-style: italic; }
+.gcd-hw-rate-hint { width: 100%; font-size: 10px; color: #bbb; margin-top: 2px; }
 
 @media (max-width: 700px) {
   .gc-summary { grid-template-columns: 1fr 1fr; }
-  .gc-content { grid-template-columns: 1fr; }
+  .gc-content  { grid-template-columns: 1fr; }
 }

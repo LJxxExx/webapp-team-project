@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import axios from 'axios'
 import './App.css'
 import Navbar from './components/bar/Navbar'
@@ -9,17 +9,10 @@ import AssignmentPage from './components/assignment/AssignmentPage'
 import EnrollmentPage from './components/enrollment/EnrollmentPage'
 import MyPage from './components/mypage/MyPage'
 import AcademicSection from './components/academic/AcademicSection'
+import LoginModal from './components/LoginModal'
 
 
 const API_BASE_URL = 'http://localhost:8000'
-
-const TEST_USER = {
-  name: 'UsrName',
-  email: 'user@university.ac.kr',
-  id: '20220001',
-  dept: '컴퓨터공학과',
-  grade: 3,
-}
 
 const PAGES = ['main', 'grade', 'assignment', 'enroll', 'mypage']
 
@@ -81,6 +74,7 @@ function normalizeAssignment(item, index) {
           ? '높음'
           : '보통'),
     progress: Number(item.progress ?? 0),
+    assignmentType: item.assignmentType ?? '일반',
     isCompleted: item.isCompleted ?? item.done ?? false,
     memo: item.memo ?? '',
     mistakeNote: item.mistakeNote ?? '',
@@ -108,6 +102,22 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [user, setUser]         = useState(null)
   const [animating, setAnimating] = useState(false)
+  const [isLoginModalOpen, setLoginModalOpen] = useState(false)
+  
+  // 로그인 상태 복원
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user')
+    const savedIsLoggedIn = localStorage.getItem('isLoggedIn')
+    if (savedIsLoggedIn === 'true' && savedUser) {
+      try {
+        const parsedUser = JSON.parse(savedUser)
+        setIsLoggedIn(true)
+        setUser(parsedUser)
+      } catch (e) {
+        console.error('Failed to parse user from localStorage', e)
+      }
+    }
+  }, [])
   
   // 전역 데이터 상태
   const [lectureCatalog, setLectureCatalog] = useState([])
@@ -117,6 +127,23 @@ export default function App() {
     plan2: [],
   })
   const [activePlan, setActivePlan] = useState('plan1')
+  const [grades, setGrades] = useState({})
+
+  // 데이터 임시 저장을 위한 useRef
+  const dataRef = useRef({
+    timetable: [],
+    assignments: [],
+    grades: {}
+  })
+
+  // 상태가 변경될 때마다 ref 업데이트
+  useEffect(() => {
+    dataRef.current = {
+      timetable: savedPlans[activePlan] || [],
+      assignments: assignments,
+      grades: grades
+    }
+  }, [savedPlans, activePlan, assignments, grades])
 
   // 초기 로딩 및 로그인 시 데이터 페칭
   useEffect(() => {
@@ -133,32 +160,35 @@ export default function App() {
   async function fetchUserData(studentId) {
     if (!studentId) return
 
-    const [timetableResult, assignmentsResult] = await Promise.allSettled([
-      axios.get(`${API_BASE_URL}/api/users/${studentId}/timetable`),
-      axios.get(`${API_BASE_URL}/api/users/${studentId}/assignments`),
-    ])
-
-    if (timetableResult.status === 'fulfilled') {
-      const res = timetableResult.value
+    try {
+      const res = await axios.get(`${API_BASE_URL}/api/users/${studentId}/data`)
+      const data = res.data
       setSavedPlans(prev => ({
         ...prev,
-        plan1: res.data
+        plan1: data.timetable || []
       }))
-    } else {
-      console.error('시간표 로딩 실패:', timetableResult.reason)
-    }
-
-    if (assignmentsResult.status === 'fulfilled') {
-      const res = assignmentsResult.value
-      setAssignments(normalizeAssignments(res.data))
-    } else {
-      console.error('과제 로딩 실패:', assignmentsResult.reason)
+      setAssignments(data.assignments ? normalizeAssignments(data.assignments) : [])
+      setGrades(data.grades || {})
+    } catch (err) {
+      console.error('사용자 데이터 로딩 실패:', err)
     }
   }
 
   function refreshUserData() {
     if (!user) return Promise.resolve()
     return fetchUserData(user.id)
+  }
+
+  // 데이터 저장 함수
+  function saveUserData(forceData = null) {
+    if (!isLoggedIn || !user) {
+      alert('로그인이 필요합니다.')
+      return
+    }
+    const dataToSync = forceData || dataRef.current
+    axios.post(`${API_BASE_URL}/api/users/${user.id}/sync`, dataToSync)
+      .then(() => console.log('데이터가 성공적으로 저장되었습니다.'))
+      .catch(err => console.error('데이터 저장 실패:', err))
   }
 
   // Sidebar에서 과제를 클릭했을 때 AssignmentPage의 해당 날짜 상세 화면으로 이동시키기 위한 상태
@@ -197,73 +227,54 @@ export default function App() {
     setTimeout(() => { setPrevPage(null); setAnimating(false) }, 380)
   }
 
-  function login()  { setIsLoggedIn(true);  setUser(TEST_USER) }
-  function logout() { setIsLoggedIn(false); setUser(null) }
-
-  // 과제 추가
-  function addAssignment(newAssignment) {
-    if (!isLoggedIn || !user) return
-    const postData = {
-      title: newAssignment.title,
-      due: newAssignment.dueDate,
-      urgency: newAssignment.priority === '긴급' ? 'today' : (newAssignment.priority === '높음' ? 'soon' : 'normal'),
-      done: false
-    }
-    axios.post(`${API_BASE_URL}/api/users/${user.id}/assignments`, postData)
-      .then(res => {
-        setAssignments(prev => [...prev, normalizeAssignment(res.data, prev.length)])
-      })
-      .catch(err => console.error('과제 추가 실패:', err))
+  function login()  { setLoginModalOpen(true) }
+  function handleLoginSuccess(userData) {
+    setIsLoggedIn(true)
+    setUser(userData)
+    localStorage.setItem('isLoggedIn', 'true')
+    localStorage.setItem('user', JSON.stringify(userData))
+  }
+  function logout() { 
+    setIsLoggedIn(false)
+    setUser(null)
+    localStorage.removeItem('isLoggedIn')
+    localStorage.removeItem('user')
   }
 
-  // 과제 수정
-  function updateAssignment(updatedAssignment) {
-    if (!isLoggedIn) return
-    const putData = {
-      title: updatedAssignment.title,
-      due: updatedAssignment.dueDate,
-      urgency: updatedAssignment.priority === '긴급' ? 'today' : (updatedAssignment.priority === '높음' ? 'soon' : 'normal'),
-      done: updatedAssignment.isCompleted
-    }
-    axios.put(`${API_BASE_URL}/api/assignments/${updatedAssignment.id}`, putData)
-      .then(res => {
-        setAssignments(prev =>
-          prev.map(assignment =>
-            assignment.id === updatedAssignment.id ? normalizeAssignment(res.data, 0) : assignment
-          )
-        )
-      })
-      .catch(err => console.error('과제 수정 실패:', err))
-  }
 
   // 과제 삭제
   function deleteAssignment(assignmentId) {
     if (!isLoggedIn) return
-    axios.delete(`${API_BASE_URL}/api/assignments/${assignmentId}`)
-      .then(() => {
-        setAssignments(prev =>
-          prev.filter(assignment => assignment.id !== assignmentId)
-        )
-      })
-      .catch(err => console.error('과제 삭제 실패:', err))
+    setAssignments(prev => {
+      const updated = prev.filter(assignment => assignment.id !== assignmentId)
+      saveUserData({ ...dataRef.current, assignments: updated })
+      return updated
+    })
   }
 
   // 과제 제출 완료 / 완료 취소
   function toggleAssignmentComplete(assignmentId) {
     if (!isLoggedIn) return
-    const target = assignments.find(a => a.id === assignmentId)
-    if (!target) return
-    axios.put(`${API_BASE_URL}/api/assignments/${assignmentId}`, { done: !target.isCompleted })
+    setAssignments(prev => {
+      const updated = prev.map(assignment =>
+        assignment.id === assignmentId
+          ? { ...assignment, isCompleted: !assignment.isCompleted }
+          : assignment
+      )
+      // 변경 후 바로 저장
+      saveUserData({ ...dataRef.current, assignments: updated })
+      return updated
+    })
+  }
+
+  // 사용자 정보 업데이트 (학년 등)
+  function updateUserProfile(newProfile) {
+    if (!isLoggedIn || !user) return
+    axios.put(`${API_BASE_URL}/api/users/${user.id}/profile`, newProfile)
       .then(res => {
-        setAssignments(prev =>
-          prev.map(assignment =>
-            assignment.id === assignmentId
-              ? { ...assignment, isCompleted: res.data.done }
-              : assignment
-          )
-        )
+        setUser(prev => ({ ...prev, grade: res.data.grade }))
       })
-      .catch(err => console.error('과제 상태 변경 실패:', err))
+      .catch(err => console.error('프로필 업데이트 실패:', err))
   }
 
   function openAssignmentFromSidebar(assignment) {
@@ -289,29 +300,57 @@ export default function App() {
               activePlan={activePlan}
               setActivePlan={setActivePlan}
               onRefreshData={refreshUserData}
+              onSaveData={() => saveUserData({ ...dataRef.current, timetable: savedPlans[activePlan] || [] })}
             />
             <AcademicSection enrolledCourses={savedLectures}/>
           </>
         )
       case 'grade':
-        return <GradeCalculator isLoggedIn={isLoggedIn} savedLectures={savedLectures} />
+        return <GradeCalculator isLoggedIn={isLoggedIn} savedLectures={savedLectures} assignments={assignments} grades={grades} setGrades={setGrades} />
       case 'assignment':
         return (
           <AssignmentPage
             isLoggedIn={isLoggedIn}
             assignments={assignments}
+            savedLectures={savedLectures}
             openDate={openAssignmentDate}
             onClearOpenDate={clearOpenAssignmentDate}
-            onAddAssignment={addAssignment}
-            onUpdateAssignment={updateAssignment}
+            onAddAssignment={(newAssign) => {
+              const newId = Date.now()
+              const created = {
+                id: newId,
+                title: newAssign.title,
+                subject: newAssign.subject,
+                dueDate: newAssign.dueDate,
+                dueTime: newAssign.dueTime || '23:59',
+                priority: newAssign.priority || '보통',
+                progress: Number(newAssign.progress ?? 0),
+                assignmentType: newAssign.assignmentType ?? '일반',
+                isCompleted: false,
+                memo: newAssign.memo ?? '',
+                mistakeNote: newAssign.mistakeNote ?? '',
+                checklist: newAssign.checklist ?? []
+              }
+              const updated = [...assignments, normalizeAssignment(created, assignments.length)]
+              setAssignments(updated)
+              saveUserData({ ...dataRef.current, assignments: updated })
+            }}
+            onUpdateAssignment={(updatedAssign) => {
+              const updated = assignments.map(a =>
+                a.id === updatedAssign.id ? normalizeAssignment(updatedAssign, 0) : a
+              )
+              setAssignments(updated)
+              saveUserData({ ...dataRef.current, assignments: updated })
+            }}
             onDeleteAssignment={deleteAssignment}
             onToggleComplete={toggleAssignmentComplete}
+            onSaveData={() => saveUserData()} // Explicit save button call if needed
           />
         )
       case 'enroll':
         return <EnrollmentPage isLoggedIn={isLoggedIn} lectureCatalog={lectureCatalog} savedPlans={savedPlans} activePlan={activePlan} />
       case 'mypage':
-        return <MyPage isLoggedIn={isLoggedIn} user={user} onLogin={login} onLogout={logout} />
+        return <MyPage isLoggedIn={isLoggedIn} user={user} onLogin={login} onLogout={logout} onUpdateUser={updateUserProfile} />
       default:
         return null
     }
@@ -344,6 +383,11 @@ export default function App() {
           </div>
         </div>
       </div>
+      <LoginModal 
+        isOpen={isLoginModalOpen} 
+        onClose={() => setLoginModalOpen(false)} 
+        onLoginSuccess={handleLoginSuccess}
+      />
     </div>
   )
 }

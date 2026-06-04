@@ -1,6 +1,32 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import LoginRequiredSection from '../common/LoginRequiredSection'
 import './GradeCalculator.css'
+
+// ─────────────────────────────────────────────
+// 상수 정의
+// ─────────────────────────────────────────────
+
+const DEFAULT_TOTAL_CLASS = 15
+const DEFAULT_EXAM_SCORE  = 60
+
+/** 위험도 레벨 임계값 */
+const RISK_THRESHOLD = { DANGER: 50, WARN: 25 }
+
+/** 출석률 위험 임계값 (75% 미만 → 강제 F 위험) */
+const ATT_THRESHOLD = { CRITICAL: 75, WARN: 85 }
+
+/** 과제 제출률 위험 임계값 */
+const HW_THRESHOLD = { CRITICAL: 60, WARN: 80 }
+
+/** 시험 점수 위험 임계값 */
+const EXAM_THRESHOLD = { CRITICAL: 50, WARN: 65 }
+
+/**
+ * 과목별 기본 가중치 (%)
+ * 사용자가 상세 패널에서 과목마다 직접 수정 가능.
+ * 출석 + 과제 + 시험(중간+기말) 합계 = 100
+ */
+const DEFAULT_WEIGHT = { att: 30, hw: 30, mid: 20, final: 20 }
 
 const GRADE_TABLE = [
   { grade: 'A+', gpa: 4.5, minScore: 95 },
@@ -21,6 +47,12 @@ const LEVEL_COLOR = {
 }
 const LEVEL_LABEL = { safe: '안정', warn: '주의', danger: '위험' }
 
+
+
+// ─────────────────────────────────────────────
+// 순수 함수
+// ─────────────────────────────────────────────
+
 function scoreToGrade(score) {
   for (const row of GRADE_TABLE) {
     if (score >= row.minScore) return row
@@ -28,38 +60,121 @@ function scoreToGrade(score) {
   return GRADE_TABLE[GRADE_TABLE.length - 1]
 }
 
-function calcRisk(course) {
-  const { totalClass, absent = 0, hwTotal, hwMiss = 0, exam = null } = course
-  const attRate = Math.round(((totalClass - absent) / totalClass) * 100)
-  const hwRate  = hwTotal === 0 ? 100 : Math.round(((hwTotal - hwMiss) / hwTotal) * 100)
-  const examScore = exam !== null && exam !== '' ? Number(exam) : null
-  let risk = 0
-  if (attRate < 75) risk += 40; else if (attRate < 85) risk += 20; else risk += 5
-  if (hwRate < 60)  risk += 30; else if (hwRate < 80) risk += 15
-  if (examScore !== null) {
-    if (examScore < 50) risk += 30; else if (examScore < 65) risk += 15
-  } else { risk += 10 }
-  risk = Math.min(risk, 100)
-  const level = risk >= 50 ? 'danger' : risk >= 25 ? 'warn' : 'safe'
-  const approxScore = Math.round(attRate * 0.3 + hwRate * 0.3 + (examScore !== null ? examScore : 60) * 0.4)
-  const gradeInfo = scoreToGrade(approxScore)
-  return { attRate, hwRate, risk, level, grade: gradeInfo.grade, gpa: gradeInfo.gpa, approxScore }
+// 과제가 실제 마감 시간을 지났는지 확인
+function isAssignmentPastDue(assignment) {
+  const dueDate = assignment.dueDate
+  const dueTime = assignment.dueTime || '23:59'
+
+  if (!dueDate) return false
+
+  const due = new Date(`${dueDate}T${dueTime}`)
+  return due < new Date()
 }
 
-// 시간표 강의를 학점 계산기 포맷으로 변환
-function lectureToGradeCourse(lecture, index) {
+/**
+ * 과목별 위험도 및 예상 학점 계산
+ * @param {object} course  - 과목 데이터 (absent, hwRate, midExam, finalExam, weight)
+ *
+ * weight: { att, hw, mid, final } (각각 %, 합계 100)
+ * 시험 점수는 중간(mid) + 기말(final)로 분리되어 각각 가중 적용.
+ */
+function calcRisk(course) {
+  const {
+    totalClass  = DEFAULT_TOTAL_CLASS,
+    absent      = 0,
+    hwRate: hwRateOverride = null,
+    midExam     = null,   // 중간고사 점수 (0~100 | null)
+    finalExam   = null,   // 기말고사 점수 (0~100 | null)
+    weight      = DEFAULT_WEIGHT,
+  } = course
+
+  // 각 가중치를 0~1 비율로 변환 (합계 100 보정)
+  const total = (weight.att + weight.hw + weight.mid + weight.final) || 100
+  const w = {
+    att:   weight.att   / total,
+    hw:    weight.hw    / total,
+    mid:   weight.mid   / total,
+    final: weight.final / total,
+  }
+
+  const attRate   = Math.round(((totalClass - absent) / totalClass) * 100)
+  const hwRate    = hwRateOverride !== null ? hwRateOverride : 100
+  const midScore  = midExam   !== null && midExam   !== '' ? Number(midExam)   : null
+  const finScore  = finalExam !== null && finalExam !== '' ? Number(finalExam) : null
+
+  // 시험 가중 평균 (입력된 시험만 사용, 미입력은 DEFAULT_EXAM_SCORE 가정)
+  // 중간·기말 둘 다 미입력이면 단순 DEFAULT 사용
+  const examWeightedScore = (() => {
+    const midW  = w.mid   / (w.mid + w.final)   // 시험 안에서 중간 비율
+    const finW  = w.final / (w.mid + w.final)   // 시험 안에서 기말 비율
+    const m = midScore !== null ? midScore : DEFAULT_EXAM_SCORE
+    const f = finScore !== null ? finScore : DEFAULT_EXAM_SCORE
+    return m * midW + f * finW
+  })()
+
+  // ── 위험 점수 산출 ──
+  let risk = 0
+
+  // 출석: 75% 미만 강제 F 위험 → +40 / 85% 미만 → +20 / 이상 → +5
+  if      (attRate < ATT_THRESHOLD.CRITICAL) risk += 40
+  else if (attRate < ATT_THRESHOLD.WARN)     risk += 20
+  else                                        risk += 5
+
+  // 과제: 60% 미만 → +30 / 80% 미만 → +15
+  if      (hwRate < HW_THRESHOLD.CRITICAL) risk += 30
+  else if (hwRate < HW_THRESHOLD.WARN)     risk += 15
+
+  // 시험(중간): 미입력 → +5 / 50점 미만 → +15 / 65점 미만 → +8
+  if (midScore !== null) {
+    if      (midScore < EXAM_THRESHOLD.CRITICAL) risk += 15
+    else if (midScore < EXAM_THRESHOLD.WARN)     risk += 8
+  } else { risk += 5 }
+
+  // 시험(기말): 미입력 → +5 / 50점 미만 → +15 / 65점 미만 → +8
+  if (finScore !== null) {
+    if      (finScore < EXAM_THRESHOLD.CRITICAL) risk += 15
+    else if (finScore < EXAM_THRESHOLD.WARN)     risk += 8
+  } else { risk += 5 }
+
+  risk = Math.min(risk, 100)
+
+  const level = risk >= RISK_THRESHOLD.DANGER ? 'danger'
+              : risk >= RISK_THRESHOLD.WARN   ? 'warn'
+              : 'safe'
+
+  // 예상 점수: 가중치 반영
+  const approxScore = Math.round(
+    attRate           * w.att +
+    hwRate            * w.hw  +
+    examWeightedScore * (w.mid + w.final)
+  )
+
+  const gradeInfo = scoreToGrade(approxScore)
   return {
-    id: `timetable-${lecture.id}`,
-    name: lecture.name,
-    credit: lecture.credit ?? 3,
-    professor: lecture.professor,
-    totalClass: 15,
-    hwTotal: 4,
+    attRate, hwRate, midScore, finScore,
+    examWeightedScore: Math.round(examWeightedScore),
+    risk, level,
+    grade: gradeInfo.grade, gpa: gradeInfo.gpa, approxScore,
   }
 }
 
-export default function GradeCalculator({ isLoggedIn, savedLectures }) {
-  // 시간표 기반 강의만 사용하고, 빈 시간표일 때 더미데이터로 돌아가지 않습니다.
+function lectureToGradeCourse(lecture) {
+  return {
+    id:         `timetable-${lecture.id}`,
+    name:       lecture.name,
+    credit:     lecture.credit ?? 3,
+    professor:  lecture.professor,
+    totalClass: DEFAULT_TOTAL_CLASS,
+  }
+}
+
+// 가중치 합계가 100인지 확인
+function weightSum(w) {
+  return (Number(w.att) || 0) + (Number(w.hw) || 0) + (Number(w.mid) || 0) + (Number(w.final) || 0)
+}
+
+export default function GradeCalculator({ isLoggedIn, savedLectures, assignments = [], grades, setGrades }) {
+
   const baseCourses = useMemo(() => {
     if (savedLectures && savedLectures.length > 0) {
       return savedLectures.map(lectureToGradeCourse)
@@ -67,55 +182,169 @@ export default function GradeCalculator({ isLoggedIn, savedLectures }) {
     return []
   }, [savedLectures])
 
-  const [stats, setStats] = useState({})
-  const [selectedId, setSelectedId] = useState(baseCourses[0]?.id)
+  // 과제 완료 기반으로 각 강의별 과제 제출률 계산
+  // assignment.subject 와 lecture.name 을 매칭
+  // 완료한 과제 + 마감 지난 과제만 평가 대상으로 사용
+  // 마감 전 미완료 과제는 아직 감점에 반영하지 않음
+  const hwRateByCourseName = useMemo(() => {
+    const map = {}
 
-  // baseCourses가 바뀌면 selectedId도 첫 번째로 초기화
-  const prevBaseCourses = React.useRef(baseCourses)
-  if (prevBaseCourses.current !== baseCourses) {
-    prevBaseCourses.current = baseCourses
-  }
+    baseCourses.forEach(course => {
+      const related = assignments.filter(
+        a => a.subject && a.subject.trim() === course.name.trim()
+      )
+
+      const evaluableAssignments = related.filter(
+        assignment => assignment.isCompleted || isAssignmentPastDue(assignment)
+      )
+
+      if (related.length === 0) {
+        map[course.id] = {
+          rate: null,
+          status: 'no-assignment',
+        }
+      } else if (evaluableAssignments.length === 0) {
+        map[course.id] = {
+          rate: null,
+          status: 'pending',
+        }
+      } else {
+        const completedCount = evaluableAssignments.filter(a => a.isCompleted).length
+        map[course.id] = {
+          rate: Math.round((completedCount / evaluableAssignments.length) * 100),
+          status: 'rated',
+        }
+      }
+    })
+
+    return map
+  }, [baseCourses, assignments])
+
+  // stats: 과목 id → { absent, midExam, finalExam, weight }
+  const stats = grades || {}
+  const setStats = setGrades
+
+  const [selectedId, setSelectedId] = useState(() => baseCourses[0]?.id)
+
+  useEffect(() => {
+    setSelectedId(baseCourses[0]?.id)
+  }, [baseCourses])
+
+  const [inputError, setInputError] = useState({})
 
   const effectiveSelectedId = baseCourses.find(c => c.id === selectedId)
-    ? selectedId
-    : baseCourses[0]?.id
+    ? selectedId : baseCourses[0]?.id
 
-  const courses = baseCourses.map(c => ({
-    ...c,
-    ...(stats[c.id] ?? { absent: 0, hwMiss: 0, exam: null }),
-  }))
+  const courses = useMemo(() => baseCourses.map(c => {
+    const hwInfo = hwRateByCourseName[c.id] ?? {
+      rate: null,
+      status: 'no-assignment',
+    }
+
+    return {
+      ...c,
+      absent:     stats[c.id]?.absent    ?? 0,
+      midExam:    stats[c.id]?.midExam   ?? null,
+      finalExam:  stats[c.id]?.finalExam ?? null,
+      weight:     stats[c.id]?.weight    ?? { ...DEFAULT_WEIGHT },
+      hwRate:     hwInfo.rate,
+      hwStatus:   hwInfo.status,
+    }
+  }), [baseCourses, stats, hwRateByCourseName])
+
+  const courseRisks = useMemo(() => {
+    const map = {}
+    courses.forEach(c => { map[c.id] = calcRisk(c) })
+    return map
+  }, [courses])
+
+  const { dangerCount, avgRisk, totalCredits } = useMemo(() => ({
+    dangerCount:  courses.filter(c => courseRisks[c.id]?.level === 'danger').length,
+    avgRisk:      Math.round(courses.reduce((s, c) => s + (courseRisks[c.id]?.risk ?? 0), 0) / (courses.length || 1)),
+    totalCredits: courses.reduce((s, c) => s + c.credit, 0),
+  }), [courses, courseRisks])
 
   const selected = courses.find(c => c.id === effectiveSelectedId) ?? courses[0]
+
+  // 숫자 입력 핸들러 (결석·시험)
+  const handleInput = useCallback((key, rawVal, max) => {
+    if (rawVal === '') {
+      setStats(prev => ({
+        ...prev,
+        [effectiveSelectedId]: { ...(prev[effectiveSelectedId] ?? {}), [key]: null },
+      }))
+      setInputError(prev => ({ ...prev, [key]: null }))
+      return
+    }
+    const num = Number(rawVal)
+    if (num < 0 || num > max) {
+      setInputError(prev => ({ ...prev, [key]: `0 ~ ${max} 사이 값을 입력하세요` }))
+      return
+    }
+    setInputError(prev => ({ ...prev, [key]: null }))
+    setStats(prev => ({
+      ...prev,
+      [effectiveSelectedId]: { ...(prev[effectiveSelectedId] ?? {}), [key]: num },
+    }))
+  }, [effectiveSelectedId])
+
+  // 가중치 입력 핸들러
+  const handleWeight = useCallback((key, rawVal) => {
+    const num = rawVal === '' ? 0 : Math.max(0, Math.min(100, Number(rawVal)))
+    setStats(prev => {
+      const cur = prev[effectiveSelectedId] ?? {}
+      const newWeight = { ...(cur.weight ?? DEFAULT_WEIGHT), [key]: num }
+      return { ...prev, [effectiveSelectedId]: { ...cur, weight: newWeight } }
+    })
+  }, [effectiveSelectedId])
 
   if (!selected) {
     return (
       <LoginRequiredSection isLoggedIn={isLoggedIn} className="grade-calc">
         <div style={{ padding: '2rem', textAlign: 'center', color: '#888' }}>
           <p>시간표에 저장된 강의가 없습니다.</p>
-          <p>메인 페이지에서 시간표를 저장하면 강의 목록이 표시됩니다.</p>
+          <p>메인 페이지 시간표에서 강의를 추가하면 이곳에 표시됩니다.</p>
         </div>
       </LoginRequiredSection>
     )
   }
 
-  const { attRate, hwRate, risk, grade, gpa, approxScore } = calcRisk(selected)
+  const { attRate, hwRate, risk, level, grade, gpa, approxScore, examWeightedScore } =
+    courseRisks[selected.id] ?? calcRisk(selected)
 
-  function updateStat(key, val) {
-    setStats(prev => ({ ...prev, [effectiveSelectedId]: { ...(prev[effectiveSelectedId] ?? { absent: 0, hwMiss: 0, exam: null }), [key]: val } }))
+  const selectedStats  = stats[effectiveSelectedId] ?? {}
+  const selectedWeight = selectedStats.weight ?? { ...DEFAULT_WEIGHT }
+  const wSum           = weightSum(selectedWeight)
+  const weightError    = wSum !== 100
+
+  const selectedHwInfo = hwRateByCourseName[effectiveSelectedId] ?? {
+    rate: null,
+    status: 'no-assignment',
   }
 
-  const dangerCount = courses.filter(c => calcRisk(c).level === 'danger').length
-  const avgRisk = Math.round(courses.reduce((s, c) => s + calcRisk(c).risk, 0) / courses.length)
-  const totalCredits = courses.reduce((s, c) => s + c.credit, 0)
+  const hwRateLabel =
+    selectedHwInfo.status === 'no-assignment'
+      ? '과제 없음'
+      : selectedHwInfo.status === 'pending'
+        ? '진행 중'
+        : `${hwRate}%`
+
+  const hwRateHint =
+    selectedHwInfo.status === 'no-assignment'
+      ? '과제 페이지에서 과제를 등록하면 이곳에 반영됩니다'
+      : selectedHwInfo.status === 'pending'
+        ? '마감 전 미완료 과제는 아직 감점에 반영되지 않습니다'
+        : '완료한 과제와 마감된 과제를 기준으로 반영됩니다'
 
   return (
     <LoginRequiredSection isLoggedIn={isLoggedIn} className="grade-calc">
-      {/* 요약 */}
+
+      {/* ── 요약 카드 ── */}
       <div className="gc-summary">
         {[
-          { label: '수강 과목', val: courses.length, unit: '과목' },
-          { label: '총 학점',   val: totalCredits,   unit: '학점' },
-          { label: '위험 과목', val: dangerCount,     unit: '과목', danger: dangerCount > 0 },
+          { label: '수강 과목',  val: courses.length, unit: '과목' },
+          { label: '총 학점',    val: totalCredits,   unit: '학점' },
+          { label: '위험 과목',  val: dangerCount,    unit: '과목', danger: dangerCount > 0 },
           { label: '평균 위험도', val: avgRisk,        unit: '점' },
         ].map(s => (
           <div key={s.label} className="gc-sum-card">
@@ -128,11 +357,12 @@ export default function GradeCalculator({ isLoggedIn, savedLectures }) {
       </div>
 
       <div className="gc-content">
-        {/* 강의 목록 */}
+
+        {/* ── 강의 목록 ── */}
         <div className="gc-list-col">
           <p className="gc-col-label">강의 목록 ({courses.length}개)</p>
           {courses.map(c => {
-            const r = calcRisk(c)
+            const r   = courseRisks[c.id]
             const col = LEVEL_COLOR[r.level]
             return (
               <div
@@ -156,22 +386,43 @@ export default function GradeCalculator({ isLoggedIn, savedLectures }) {
                   </div>
                 </div>
                 <div className="gcc-bars">
-                  {[['출석률', r.attRate], ['과제', r.hwRate]].map(([lbl, pct]) => (
-                    <div key={lbl} className="gcc-bar-row">
-                      <span className="gcc-bar-label">{lbl}</span>
-                      <div className="gcc-bar-track">
-                        <div className="gcc-bar-fill" style={{ width: `${pct}%`, background: col.bar }} />
-                      </div>
-                      <span className="gcc-bar-pct">{pct}%</span>
+                  <div className="gcc-bar-row">
+                    <span className="gcc-bar-label">출석률</span>
+                    <div className="gcc-bar-track">
+                      <div
+                        className="gcc-bar-fill"
+                        style={{ width: `${r.attRate}%`, background: col.bar }}
+                      />
                     </div>
-                  ))}
+                    <span className="gcc-bar-pct">{r.attRate}%</span>
+                  </div>
+
+                  <div className="gcc-bar-row">
+                    <span className="gcc-bar-label">과제</span>
+                    <div className="gcc-bar-track">
+                      <div
+                        className="gcc-bar-fill"
+                        style={{
+                          width: c.hwStatus === 'rated' ? `${r.hwRate}%` : '0%',
+                          background: col.bar,
+                        }}
+                      />
+                    </div>
+                    <span className="gcc-bar-pct">
+                      {c.hwStatus === 'no-assignment'
+                        ? '없음'
+                        : c.hwStatus === 'pending'
+                          ? '진행'
+                          : `${r.hwRate}%`}
+                    </span>
+                  </div>
                 </div>
               </div>
             )
           })}
         </div>
 
-        {/* 상세 패널 */}
+        {/* ── 상세 패널 ── */}
         <div className="gc-detail">
           <div className="gcd-header">
             <div>
@@ -184,6 +435,7 @@ export default function GradeCalculator({ isLoggedIn, savedLectures }) {
             </div>
           </div>
 
+          {/* 학점 테이블 */}
           <div className="gcd-grade-table">
             {GRADE_TABLE.map(row => (
               <div key={row.grade} className={'gcd-grade-cell' + (row.grade === grade ? ' active' : '')}>
@@ -193,12 +445,13 @@ export default function GradeCalculator({ isLoggedIn, savedLectures }) {
             ))}
           </div>
 
+          {/* 통계 카드 */}
           <div className="gcd-stats">
             {[
-              ['출석률', `${attRate}%`],
-              ['과제 제출률', `${hwRate}%`],
-              ['예상 점수', `${approxScore}점`],
-              ['위험도', `${risk}점`],
+              ['출석률',      `${attRate}%`],
+              ['과제 제출률',  hwRateLabel],
+              ['시험 평균',    `${examWeightedScore}점`],
+              ['예상 점수',    `${approxScore}점`],
             ].map(([l, v]) => (
               <div key={l} className="gcd-stat">
                 <span className="gcd-stat-label">{l}</span>
@@ -207,24 +460,145 @@ export default function GradeCalculator({ isLoggedIn, savedLectures }) {
             ))}
           </div>
 
-          <p className="gcd-section-label">실적 입력</p>
-          <div className="gcd-inputs">
+          {/* 위험도 게이지 */}
+          <p className="gcd-section-label">위험도 게이지</p>
+          <div className="gcd-risk-gauge">
+            <div className="gcd-risk-gauge-track">
+              <div
+                className="gcd-risk-gauge-fill"
+                style={{
+                  width: `${risk}%`,
+                  background: risk >= RISK_THRESHOLD.DANGER ? LEVEL_COLOR.danger.bar
+                            : risk >= RISK_THRESHOLD.WARN   ? LEVEL_COLOR.warn.bar
+                            : LEVEL_COLOR.safe.bar,
+                }}
+              />
+            </div>
+            <span
+              className="gcd-risk-gauge-label"
+              style={{
+                color: risk >= RISK_THRESHOLD.DANGER ? LEVEL_COLOR.danger.text
+                     : risk >= RISK_THRESHOLD.WARN   ? LEVEL_COLOR.warn.text
+                     : LEVEL_COLOR.safe.text,
+              }}
+            >
+              {LEVEL_LABEL[level]} {risk}점
+            </span>
+          </div>
+
+          {/* ── 성적 반영 비율 (가중치) ── */}
+          <p className="gcd-section-label">
+            성적 반영 비율
+            <span className={`gcd-weight-sum ${weightError ? 'error' : 'ok'}`}>
+              합계 {wSum}% {weightError ? '← 합계가 100이 되어야 합니다' : '✓'}
+            </span>
+          </p>
+          <div className="gcd-weight-grid">
             {[
-              { label: `결석 횟수 (총 ${selected.totalClass}회)`, key: 'absent',  max: selected.totalClass, val: (stats[effectiveSelectedId] ?? { absent: 0 }).absent },
-              { label: `과제 미제출 (총 ${selected.hwTotal}개)`,  key: 'hwMiss',  max: selected.hwTotal,    val: (stats[effectiveSelectedId] ?? { hwMiss: 0 }).hwMiss },
-              { label: '시험 점수 (0~100)',                         key: 'exam',    max: 100,                 val: (stats[effectiveSelectedId] ?? { exam: null }).exam ?? '' },
-            ].map(({ label, key, max, val }) => (
-              <div key={key} className="gcd-input-row">
-                <label className="gcd-input-label">{label}</label>
-                <input
-                  type="number" min={0} max={max}
-                  className="gcd-input-field"
-                  value={val}
-                  placeholder="미입력"
-                  onChange={e => updateStat(key, e.target.value === '' ? null : Number(e.target.value))}
-                />
+              { key: 'att',   label: '출석' },
+              { key: 'hw',    label: '과제' },
+              { key: 'mid',   label: '중간고사' },
+              { key: 'final', label: '기말고사' },
+            ].map(({ key, label }) => (
+              <div key={key} className="gcd-weight-row">
+                <label className="gcd-weight-label">{label}</label>
+                <div className="gcd-weight-input-wrap">
+                  <input
+                    type="number" min={0} max={100}
+                    className={'gcd-weight-input' + (weightError ? ' error' : '')}
+                    value={selectedWeight[key] ?? DEFAULT_WEIGHT[key]}
+                    onChange={e => handleWeight(key, e.target.value)}
+                  />
+                  <span className="gcd-weight-pct">%</span>
+                </div>
+                {/* 비율 시각화 바 */}
+                <div className="gcd-weight-bar-track">
+                  <div
+                    className="gcd-weight-bar-fill"
+                    style={{ width: `${selectedWeight[key] ?? DEFAULT_WEIGHT[key]}%` }}
+                  />
+                </div>
               </div>
             ))}
+          </div>
+
+          {/* ── 실적 입력 ── */}
+          <p className="gcd-section-label">실적 입력</p>
+          <div className="gcd-inputs">
+
+            {/* 결석 횟수 */}
+            <div className="gcd-input-row">
+              <label className="gcd-input-label">결석 횟수 (총 {selected.totalClass}회)</label>
+              <div className="gcd-input-field-wrap">
+                <input
+                  type="number" min={0} max={selected.totalClass}
+                  className={'gcd-input-field' + (inputError.absent ? ' error' : '')}
+                  value={selectedStats.absent ?? 0}
+                  placeholder="미입력"
+                  onChange={e => handleInput('absent', e.target.value, selected.totalClass)}
+                />
+                {inputError.absent && <span className="gcd-input-error">{inputError.absent}</span>}
+              </div>
+            </div>
+
+            {/* 중간고사 점수 */}
+            <div className="gcd-input-row">
+              <label className="gcd-input-label">중간고사 점수 (0~100)</label>
+              <div className="gcd-input-field-wrap">
+                <input
+                  type="number" min={0} max={100}
+                  className={'gcd-input-field' + (inputError.midExam ? ' error' : '')}
+                  value={selectedStats.midExam ?? ''}
+                  placeholder="미입력"
+                  onChange={e => handleInput('midExam', e.target.value, 100)}
+                />
+                {inputError.midExam && <span className="gcd-input-error">{inputError.midExam}</span>}
+              </div>
+            </div>
+
+            {/* 기말고사 점수 */}
+            <div className="gcd-input-row">
+              <label className="gcd-input-label">기말고사 점수 (0~100)</label>
+              <div className="gcd-input-field-wrap">
+                <input
+                  type="number" min={0} max={100}
+                  className={'gcd-input-field' + (inputError.finalExam ? ' error' : '')}
+                  value={selectedStats.finalExam ?? ''}
+                  placeholder="미입력"
+                  onChange={e => handleInput('finalExam', e.target.value, 100)}
+                />
+                {inputError.finalExam && <span className="gcd-input-error">{inputError.finalExam}</span>}
+              </div>
+            </div>
+
+            {/* 과제 제출률 (자동 연동) */}
+            <div className="gcd-input-row">
+              <label className="gcd-input-label">과제 제출률</label>
+              <div className="gcd-hw-rate-display">
+                {selectedHwInfo.status === 'no-assignment' ? (
+                  <span className="gcd-hw-rate-none">등록된 과제 없음</span>
+                ) : selectedHwInfo.status === 'pending' ? (
+                  <span className="gcd-hw-rate-none">진행 중</span>
+                ) : (
+                  <>
+                    <div className="gcd-hw-rate-bar-track">
+                      <div
+                        className="gcd-hw-rate-bar-fill"
+                        style={{
+                          width: `${hwRate}%`,
+                          background: hwRate >= HW_THRESHOLD.WARN     ? LEVEL_COLOR.safe.bar
+                                    : hwRate >= HW_THRESHOLD.CRITICAL ? LEVEL_COLOR.warn.bar
+                                    : LEVEL_COLOR.danger.bar,
+                        }}
+                      />
+                    </div>
+                    <span className="gcd-hw-rate-pct">{hwRate}%</span>
+                  </>
+                )}
+                <span className="gcd-hw-rate-hint">{hwRateHint}</span>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>

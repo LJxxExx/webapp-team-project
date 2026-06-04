@@ -5,6 +5,7 @@ from sqlalchemy.exc import OperationalError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
+from pwdlib import PasswordHash
 import models
 from database import engine, SessionLocal
 from contextlib import asynccontextmanager
@@ -15,7 +16,7 @@ import time
 # 1. DB 테이블 자동 생성
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🚀 서버를 시작합니다. DB 연결을 시도합니다...")
+    print("서버를 시작합니다. DB 연결을 시도합니다...")
     
     max_retries = 5  # 최대 5번 재시도
     for attempt in range(max_retries):
@@ -23,19 +24,20 @@ async def lifespan(app: FastAPI):
             # DB 연결을 가장 먼저 시도하는 부분 (테이블 생성)
             models.Base.metadata.create_all(bind=engine)
             ensure_lecture_schema()
-            print("✅ DB 연결 및 테이블 뼈대 생성 성공!")
+            ensure_user_schema()
+            print("DB 연결 및 테이블 뼈대 생성 성공!")
             break  # 성공하면 반복문 탈출
         except OperationalError:
-            print(f"⏳ DB가 아직 준비되지 않았습니다. 3초 후 다시 시도합니다... ({attempt + 1}/{max_retries})")
+            print(f"DB가 아직 준비되지 않았습니다. 3초 후 다시 시도합니다... ({attempt + 1}/{max_retries})")
             time.sleep(3)
     else:
         # 5번 다 실패했을 때만 에러 발생
-        raise Exception("🚨 DB 연결에 최종 실패했습니다. DB 상태를 확인하세요.")
+        raise Exception("DB 연결에 최종 실패했습니다. DB 상태를 확인하세요.")
 
     # 연결 성공 후 데이터 주입 진행
     bulk_insert.insert_lectures()
     seed.seed_db()
-    print("✅ 모든 데이터베이스 준비가 완료되었습니다.")
+    print("모든 데이터베이스 준비가 완료되었습니다.")
     yield
 
     # 서버 종료시 실행
@@ -79,6 +81,22 @@ def ensure_lecture_schema():
                 if 'duplicate' not in message and 'already exists' not in message:
                     raise
 
+def ensure_user_schema():
+    columns = [
+        ('email', 'VARCHAR(100)'),
+        ('department', 'VARCHAR(100)'),
+        ('grade', 'VARCHAR(20) DEFAULT "1학년"'),
+    ]
+    with engine.begin() as connection:
+        for column_name, column_type in columns:
+            try:
+                connection.execute(text(f"ALTER TABLE users ADD COLUMN {column_name} {column_type}"))
+                print(f"사용자 테이블 컬럼 추가: {column_name}")
+            except Exception as exc:
+                message = str(exc).lower()
+                if 'duplicate' not in message and 'already exists' not in message:
+                    raise
+
 def get_db():
     db = SessionLocal()
     try:
@@ -87,6 +105,21 @@ def get_db():
         db.close()
 
 # --- Pydantic 스키마 ---
+class LoginRequest(BaseModel):
+    student_id: str
+    password: str
+
+class SignupRequest(BaseModel):
+    email: str
+    student_id: str
+    department: str
+    password: str
+
+class SyncData(BaseModel):
+    timetable: list
+    assignments: list
+    grades: dict
+
 class AssignmentCreate(BaseModel):
     title: str
     due: str
@@ -146,8 +179,114 @@ def find_time_conflict(user, new_lecture):
     return None
 
 # ---------------------------------------------------------
-# 🚀 4. 전체 강의 목록 조회 API
+# 4. 전체 강의 목록 조회 API
 # ---------------------------------------------------------
+pwd_context = PasswordHash.recommended()
+
+# ---------------------------------------------------------
+# JSON 데이터 관리
+# ---------------------------------------------------------
+import json
+import os
+
+USERS_DATA_FILE = "users_data.json"
+
+def load_users_data():
+    if not os.path.exists(USERS_DATA_FILE):
+        return {}
+    with open(USERS_DATA_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_users_data(data):
+    with open(USERS_DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+@app.post("/api/signup")
+def signup(req: SignupRequest, db: Session = Depends(get_db)):
+    if len(req.student_id) != 7:
+        raise HTTPException(status_code=400, detail="학번은 7자리여야 합니다.")
+    if "@" not in req.email:
+        raise HTTPException(status_code=400, detail="유효한 이메일을 입력해주세요.")
+        
+    user = db.query(models.User).filter(models.User.student_id == req.student_id).first()
+    if user:
+        raise HTTPException(status_code=400, detail="이미 존재하는 학번입니다.")
+        
+    hashed_pw = pwd_context.hash(req.password)
+    new_user = models.User(
+        student_id=req.student_id,
+        name="신규회원", 
+        email=req.email,
+        department=req.department,
+        hashed_password=hashed_pw
+    )
+    db.add(new_user)
+    db.commit()
+    
+    # JSON 파일에도 초기 데이터 생성
+    data = load_users_data()
+    data[req.student_id] = {
+        "timetable": [],
+        "assignments": [],
+        "grades": {}
+    }
+    save_users_data(data)
+    
+    return {"message": "회원가입이 완료되었습니다."}
+
+@app.post("/api/users/{student_id}/sync")
+def sync_user_data(student_id: str, payload: SyncData, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.student_id == student_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    data = load_users_data()
+    data[student_id] = {
+        "timetable": payload.timetable,
+        "assignments": payload.assignments,
+        "grades": payload.grades
+    }
+    save_users_data(data)
+    return {"message": "데이터가 성공적으로 저장되었습니다."}
+
+@app.get("/api/users/{student_id}/data")
+def get_user_data(student_id: str, db: Session = Depends(get_db)):
+    data = load_users_data()
+    user_data = data.get(student_id, {
+        "timetable": [],
+        "assignments": [],
+        "grades": {}
+    })
+    return user_data
+
+@app.post("/api/login")
+def login(req: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.student_id == req.student_id).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="존재하지 않는 학번입니다.")
+    if not pwd_context.verify(req.password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="비밀번호가 일치하지 않습니다.")
+    
+    return {
+        "id": user.student_id,
+        "name": user.name,
+        "email": user.email,
+        "dept": user.department,
+        "grade": user.grade or "1학년"
+    }
+
+class UserUpdate(BaseModel):
+    grade: str
+
+@app.put("/api/users/{student_id}/profile")
+def update_user_profile(student_id: str, profile: UserUpdate, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.student_id == student_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.grade = profile.grade
+    db.commit()
+    return {"message": "Profile updated", "grade": user.grade}
+
 @app.get("/api/lectures")
 def get_all_lectures(db: Session = Depends(get_db)):
     lectures = db.query(models.Lecture).all()
@@ -192,7 +331,7 @@ def get_all_lectures(db: Session = Depends(get_db)):
     return result
 
 # ---------------------------------------------------------
-# 🚀 5. 학번(student_id) 기반 시간표 조회 및 수강신청 API
+# 5. 학번(student_id) 기반 시간표 조회 및 수강신청 API
 # ---------------------------------------------------------
 @app.get("/api/users/{student_id}/timetable")
 def get_user_timetable(student_id: str, db: Session = Depends(get_db)):
@@ -275,7 +414,7 @@ def drop_lecture(student_id: str, lecture_id: str, db: Session = Depends(get_db)
     return {"detail": "수강 취소 완료", "lectureId": lecture.id}
 
 # ---------------------------------------------------------
-# 🚀 6. 학번(student_id) 기반 과제 API (CRUD)
+# 6. 학번(student_id) 기반 과제 API (CRUD)
 # ---------------------------------------------------------
 @app.get("/api/users/{student_id}/assignments")
 def get_user_assignments(student_id: str, db: Session = Depends(get_db)):
