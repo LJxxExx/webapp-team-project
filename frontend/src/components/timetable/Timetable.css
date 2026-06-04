@@ -852,6 +852,59 @@
   margin-top: 12px;
 }
 
+/* 추천 후보 팝업 (조건 설정 창 위에 뜨는 2단계 팝업) */
+.timetable-candidate-backdrop {
+  z-index: 320;
+  background: rgba(248, 249, 250, 0.96);
+}
+.timetable-candidate-panel {
+  width: min(1080px, calc(100vw - 48px));
+}
+.candidate-modal-top {
+  margin-bottom: 10px;
+}
+.btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  background: #fff;
+  color: #374151;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-back:hover {
+  background: #f3f4f6;
+}
+/* 전용 팝업에서는 미리보기 시간표를 더 크게 — 가독성 확보 */
+.timetable-candidate-panel .candidate-preview .timetable-body {
+  --row-height: 44px;
+}
+.timetable-candidate-panel .candidate-preview .course-block strong {
+  font-size: 11px;
+}
+.timetable-candidate-panel .candidate-preview .course-block span {
+  font-size: 10px;
+}
+
+/* 필수 과목 선택 제목 + 강의 개수 한 줄 배치 (개수 폰트/색/크기는 기존 span 유지) */
+.required-course-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.required-course-head strong {
+  font-size: 13px;
+  color: #111827;
+}
+.required-course-head span {
+  font-size: 11px;
+  color: #6b7280;
+}
+
 @media (max-width: 560px) {
   .timetable-title-area {
     align-items: flex-start;

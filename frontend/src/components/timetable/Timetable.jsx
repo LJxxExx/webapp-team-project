@@ -1024,9 +1024,8 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
       savedPlansRef.current = nextPlans
       return nextPlans
     })
-    clearRecommendCandidates()
-    setToastMessage(`${planLabel}에 적용했어요.`)
-    showMessage(`${planLabel}에 적용했어요. (${candidate.lectures.length}과목, ${candidate.credits}학점)`)
+    closeSettingPanel()
+    setToastMessage(`${planLabel}에 적용했어요. (${candidate.lectures.length}과목, ${candidate.credits}학점)`)
   }
 
   function openSavedPlan(planKey) {
@@ -1318,8 +1317,10 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
 
               <div className="recommend-condition-grid">
                 <div className="recommend-condition-card required-course-card">
-                  <strong>필수 과목 선택</strong>
-                  <span>{requiredLectureOptions.length}개</span>
+                  <div className="required-course-head">
+                    <strong>필수 과목 선택</strong>
+                    <span>{requiredLectureOptions.length}개</span>
+                  </div>
                   <div className="required-course-list">
                     {requiredLectureOptions.length === 0 ? (
                       <p>선택할 수 있는 강의가 없습니다.</p>
@@ -1437,6 +1438,13 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
               const selectedCandidate = recommendCandidates[selectedCandidateIndex] || recommendCandidates[0]
               const previewCourses = selectedCandidate ? selectedCandidate.courses : []
               return (
+                <div className="timetable-setting-backdrop timetable-candidate-backdrop">
+                  <div className="timetable-setting-panel timetable-candidate-panel">
+                    <div className="candidate-modal-top">
+                      <button type="button" className="btn-back" onClick={clearRecommendCandidates}>
+                        ← 이전 화면으로 돌아가기
+                      </button>
+                    </div>
                 <section className="recommend-candidates">
                   <div className="lecture-search-header">
                     <div>
@@ -1525,6 +1533,8 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
                     </button>
                   </div>
                 </section>
+                  </div>
+                </div>
               )
             })()}
             </>
