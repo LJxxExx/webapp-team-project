@@ -24,6 +24,7 @@ const TIMETABLE_COLORS = [
 const RECOMMEND_TARGET_CREDITS = 18
 const RECOMMEND_MAX_LECTURES = 8
 const RECOMMEND_CANDIDATE_COUNT = 3
+const RECOMMEND_SUCCESS_WEIGHT = 10
 const DEFAULT_PREFERRED_TIME_RANGE = { start: '9:00', end: '19:00' }
 const PREFERRED_TIME_OPTIONS = [
   { key: '전체', label: '전체', start: '9:00', end: '19:00' },
@@ -41,7 +42,6 @@ const COLLEGE_ORDER = [
   '의과대학',
   '간호대학',
   '음악공연예술대학',
-  '미술대학',
   '체육대학',
   'Keimyung Adams College',
   'Tabula Rasa College',
@@ -166,7 +166,6 @@ function formatRoom(room) {
     .replace(/^덕래관\s*/, '덕')
     .replace(/^스미스관\s*/, '스')
     .replace(/^동천관\s*/, '동')
-    .replace(/^대명비사관\s*/, '대')
     .replace(/^바우어관\s*/, '바')
     .replace(/^교양관\s*/, '교')
     .replace(/^사범관\s*/, '사')
@@ -333,6 +332,46 @@ function getRecommendationScore(lecture) {
   return requiredBonus + targetGrade
 }
 
+// 수강신청 성공률(%) — 데이터 없으면 중립값 50
+function getSuccessRate(lecture) {
+  const rate = Number(lecture?.successRate)
+  return Number.isFinite(rate) ? rate : 50
+}
+
+// 신청 현황 "신청인원/정원" 문자열 (데이터 없으면 null)
+function getCompetitionText(lecture) {
+  const capacity = Number(lecture?.capacity)
+  const enrolled = Number(lecture?.enrolled)
+  if (Number.isFinite(capacity) && capacity > 0 && Number.isFinite(enrolled)) {
+    return `${enrolled}/${capacity}`
+  }
+  return null
+}
+
+// 여러 강의의 평균 성공률(반올림). 비어 있으면 null
+function getAverageSuccessRate(lectures) {
+  const rates = lectures.map(getSuccessRate)
+  if (rates.length === 0) return null
+  return Math.round(rates.reduce((sum, rate) => sum + rate, 0) / rates.length)
+}
+
+// 시간표 엔트리 목록 요약 (강의 단위로 중복 제거) — 1안/2안 비교용
+function summarizePlanEntries(entries = []) {
+  const byLecture = new Map()
+  entries.forEach(entry => {
+    if (entry.lectureId && !byLecture.has(entry.lectureId)) byLecture.set(entry.lectureId, entry)
+  })
+  const lectures = [...byLecture.values()]
+  const credits = lectures.reduce((sum, entry) => sum + Number(entry.credit || 0), 0)
+  const usedDays = new Set(entries.map(entry => entry.day))
+  return {
+    lectures,
+    count: lectures.length,
+    credits,
+    freeDays: DAYS.filter(day => !usedDays.has(day)),
+  }
+}
+
 // 시드 기반 난수 (mulberry32) — 같은 시드면 같은 결과라 후보 재현이 가능
 function createRng(seed) {
   let state = (Number(seed) >>> 0) || 1
@@ -458,6 +497,8 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
   const [preferredTimeRange, setPreferredTimeRange] = useState(DEFAULT_PREFERRED_TIME_RANGE)
   const [desiredCredits, setDesiredCredits] = useState(String(RECOMMEND_TARGET_CREDITS))
   const [preferredGrade, setPreferredGrade] = useState(ALL_OPTION)
+  const [prioritizeSuccess, setPrioritizeSuccess] = useState(false)
+  const [isCompareOpen, setIsCompareOpen] = useState(false)
   const [lectureGradeFilters, setLectureGradeFilters] = useState([])
   const [lectureCreditFilters, setLectureCreditFilters] = useState([])
   const [isLectureFilterOpen, setIsLectureFilterOpen] = useState(false)
@@ -776,6 +817,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     setRecommendSeed(0)
     setRecommendMode('condition')
     setSettingTab('auto')
+    setPrioritizeSuccess(false)
     clearRecommendCandidates()
     showMessage('')
     setIsSettingOpen(true)
@@ -844,6 +886,11 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
       a.name.localeCompare(b.name, 'ko') || a.lectureCode.localeCompare(b.lectureCode, 'ko')
     )
 
+    // 성공 가능성 우선 토글이 켜지면 성공률이 높을수록 점수를 낮춰(=우선) 준다.
+    const baseScore = lecture =>
+      getRecommendationScore(lecture) -
+      (prioritizeSuccess ? (getSuccessRate(lecture) / 100) * RECOMMEND_SUCCESS_WEIGHT : 0)
+
     const pool = filteredLectures
       .filter(lecture =>
         !requiredLectureIdSet.has(lecture.id) &&
@@ -855,13 +902,13 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
       )
       .sort((a, b) =>
         getAlternativePenalty(a) - getAlternativePenalty(b) ||
-        getRecommendationScore(a) - getRecommendationScore(b) ||
+        baseScore(a) - baseScore(b) ||
         String(a.lectureCode).localeCompare(String(b.lectureCode), 'ko') ||
         a.name.localeCompare(b.name, 'ko')
       )
 
     // 동점 정렬 키에 약간의 흔들림(jitter)을 줘서 후보별로 다른 조합을 뽑되 품질 순서는 유지
-    const scoreOf = lecture => getAlternativePenalty(lecture) * 1000 + getRecommendationScore(lecture)
+    const scoreOf = lecture => getAlternativePenalty(lecture) * 1000 + baseScore(lecture)
 
     return { ok: true, requiredOrdered, pool, targetCredits, scoreOf }
   }
@@ -1200,13 +1247,22 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
             </button>
           </div>
         </div>
-        <button
-          className="btn-secondary"
-          disabled={!isLoggedIn}
-          onClick={toggleSettingPanel}
-        >
-          시간표 생성
-        </button>
+        <div className="timetable-header-actions">
+          <button
+            className="btn-secondary"
+            disabled={!isLoggedIn}
+            onClick={() => setIsCompareOpen(true)}
+          >
+            1안·2안 비교
+          </button>
+          <button
+            className="btn-secondary"
+            disabled={!isLoggedIn}
+            onClick={toggleSettingPanel}
+          >
+            시간표 생성
+          </button>
+        </div>
       </div>
 
       <LoginRequiredSection isLoggedIn={isLoggedIn} className="timetable-container">
@@ -1334,6 +1390,9 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
                           <span>
                             <strong>{lecture.name}</strong>
                             <small>{lecture.lectureCode}-{lecture.sectionCode} · {lecture.professor}</small>
+                            {Number.isFinite(Number(lecture.successRate)) && (
+                              <small className="lecture-success">성공률 {Number(lecture.successRate)}%{getCompetitionText(lecture) ? ` · ${getCompetitionText(lecture)}` : ''}</small>
+                            )}
                           </span>
                         </label>
                       ))
@@ -1387,6 +1446,14 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
                       </select>
                     </label>
                   </div>
+                  <label className="recommend-success-toggle">
+                    <input
+                      type="checkbox"
+                      checked={prioritizeSuccess}
+                      onChange={event => setPrioritizeSuccess(event.target.checked)}
+                    />
+                    <span>성공 가능성(성공률) 높은 분반 우선 추천</span>
+                  </label>
                 </div>
 
                 <div className="recommend-condition-card">
@@ -1475,6 +1542,9 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
                             {candidate.mode === 'alternative' && typeof candidate.swappedCount === 'number'
                               ? ` · 분반 교체 ${candidate.swappedCount}개`
                               : ''}
+                            {getAverageSuccessRate(candidate.lectures) !== null
+                              ? ` · 평균 성공률 ${getAverageSuccessRate(candidate.lectures)}%`
+                              : ''}
                           </div>
                           <div className="candidate-course-chips">
                             {candidate.lectures.map(lecture => (
@@ -1557,6 +1627,9 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
                           : `${lecture.liberalType} / ${lecture.liberalArea}`}
                       </small>
                       <small>{formatMeetings(lecture.meetings)}</small>
+                      {Number.isFinite(Number(lecture.successRate)) && (
+                        <small className="lecture-success">성공률 {Number(lecture.successRate)}%{getCompetitionText(lecture) ? ` · 정원 ${getCompetitionText(lecture)}` : ''}</small>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -1609,6 +1682,94 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
           </div>
         </div>
       )}
+
+      {isLoggedIn && isCompareOpen && (() => {
+        const plansSnapshot = savedPlansRef.current || savedPlans
+        const planEntries = { plan1: plansSnapshot.plan1 || [], plan2: plansSnapshot.plan2 || [] }
+        const summary = { plan1: summarizePlanEntries(planEntries.plan1), plan2: summarizePlanEntries(planEntries.plan2) }
+        const ids1 = new Set(summary.plan1.lectures.map(lecture => lecture.lectureId))
+        const ids2 = new Set(summary.plan2.lectures.map(lecture => lecture.lectureId))
+        const nameOf = id =>
+          (summary.plan1.lectures.find(lecture => lecture.lectureId === id) ||
+            summary.plan2.lectures.find(lecture => lecture.lectureId === id))?.name || id
+        const commonNames = [...ids1].filter(id => ids2.has(id)).map(nameOf)
+        const only1Names = [...ids1].filter(id => !ids2.has(id)).map(nameOf)
+        const only2Names = [...ids2].filter(id => !ids1.has(id)).map(nameOf)
+
+        const renderGrid = entries => (
+          <div className="candidate-preview">
+            <div className="timetable-head">
+              <div className="th-time">시간</div>
+              {DAYS.map(day => <div key={day} className="th-day">{day}</div>)}
+            </div>
+            <div className="timetable-body">
+              <div className="time-axis">
+                {HOURS.map(hour => (
+                  <div key={hour} className="td-time">{String(hour).padStart(2, '0')}:00</div>
+                ))}
+              </div>
+              <div className="day-lanes">
+                {DAYS.map(day => (
+                  <div key={day} className="day-lane">
+                    {entries
+                      .filter(course => course.day === day)
+                      .sort((a, b) => toMinutes(a, 'start') - toMinutes(b, 'start'))
+                      .map(course => (
+                        <div
+                          key={course.id}
+                          className={`course-block ${toMinutes(course, 'end') - toMinutes(course, 'start') <= 60 ? 'compact' : ''}`}
+                          style={getCourseStyle(course)}
+                        >
+                          <strong>{course.name}</strong>
+                          <span>{formatRoom(course.room)} {course.professor}</span>
+                        </div>
+                      ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+
+        return (
+          <div className="compare-backdrop">
+            <div className="compare-panel">
+              <div className="setting-top">
+                <div>
+                  <h3>1안 · 2안 비교</h3>
+                  <p>저장된 두 시간표를 나란히 비교합니다.</p>
+                </div>
+                <button className="btn-text" onClick={() => setIsCompareOpen(false)}>닫기</button>
+              </div>
+
+              <div className="compare-columns">
+                {['plan1', 'plan2'].map(planKey => {
+                  const label = planKey === 'plan1' ? '1안' : '2안'
+                  const sum = summary[planKey]
+                  const entries = planEntries[planKey]
+                  return (
+                    <div key={planKey} className="compare-col">
+                      <div className="compare-col-head">
+                        <strong>{label}</strong>
+                        <span>{sum.count}과목 · {sum.credits}학점 · 공강 {sum.freeDays.length > 0 ? sum.freeDays.join('·') : '없음'}</span>
+                      </div>
+                      {entries.length === 0
+                        ? <p className="compare-empty">아직 저장된 시간표가 없습니다.</p>
+                        : renderGrid(entries)}
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="compare-diff">
+                <div><strong>공통 과목</strong><span>{commonNames.length > 0 ? commonNames.join(', ') : '없음'}</span></div>
+                <div><strong>1안에만</strong><span>{only1Names.length > 0 ? only1Names.join(', ') : '없음'}</span></div>
+                <div><strong>2안에만</strong><span>{only2Names.length > 0 ? only2Names.join(', ') : '없음'}</span></div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

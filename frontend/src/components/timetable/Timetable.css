@@ -852,7 +852,102 @@
   margin-top: 12px;
 }
 
+/* 성공 가능성 우선 토글 */
+.recommend-success-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: #374151;
+  cursor: pointer;
+}
+.recommend-success-toggle input {
+  width: 15px;
+  height: 15px;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+/* 성공률/정원 표시 (검색 결과·필수 과목) */
+.lecture-success {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+/* 헤더 버튼 묶음 */
+.timetable-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* 1안 ↔ 2안 비교 모달 */
+.compare-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(17, 24, 39, 0.45);
+}
+.compare-panel {
+  width: min(920px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 20px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+}
+.compare-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 8px;
+}
+.compare-col {
+  min-width: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfcfe;
+}
+.compare-col-head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 8px;
+}
+.compare-col-head > strong { font-size: 14px; color: #2563eb; }
+.compare-col-head > span { font-size: 12px; color: #6b7280; }
+.compare-empty {
+  margin: 0;
+  padding: 24px 8px;
+  font-size: 12px;
+  color: #9ca3af;
+  text-align: center;
+}
+.compare-diff {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #f3f4f6;
+}
+.compare-diff > div {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 8px;
+  font-size: 12px;
+}
+.compare-diff strong { color: #111827; }
+.compare-diff span { color: #4b5563; }
+
 @media (max-width: 560px) {
+  .compare-columns { grid-template-columns: 1fr; }
   .timetable-title-area {
     align-items: flex-start;
     flex-direction: column;
