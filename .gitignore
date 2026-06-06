@@ -36,7 +36,3 @@ backend/users_data.json
 .DS_Store
 .vscode/
 .idea/
-
-
-# Claude (preview/local)
-.claude/
