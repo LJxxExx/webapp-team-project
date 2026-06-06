@@ -904,29 +904,6 @@
   font-size: 11px;
   color: #6b7280;
 }
-/* 성공 가능성 우선 토글 */
-.recommend-success-toggle {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 10px;
-  font-size: 12px;
-  color: #374151;
-  cursor: pointer;
-}
-.recommend-success-toggle input {
-  width: 15px;
-  height: 15px;
-  accent-color: #2563eb;
-  cursor: pointer;
-}
-
-/* 성공률/정원 표시 (검색 결과·필수 과목) */
-.lecture-success {
-  color: #2563eb;
-  font-weight: 600;
-}
-
 /* 헤더 버튼 묶음 */
 .timetable-header-actions {
   display: flex;
