@@ -8003,36 +8003,6 @@
         "majorCode": ""
     },
     {
-        "id": "KMU_AVD_28101",
-        "lectureCode": "28101",
-        "sectionCode": "01",
-        "name": "기초디자인",
-        "professor": "서미술",
-        "room": "미술대학 203",
-        "credit": 3,
-        "category": "전공",
-        "college": "미술대학",
-        "department": "시각디자인과",
-        "capacity": 32,
-        "enrolled": 25,
-        "successRate": 66,
-        "color": "#FFF0C9",
-        "meetings": [
-            {
-                "day": "월",
-                "startHour": 16,
-                "startMinute": 30,
-                "endHour": 18,
-                "endMinute": 20
-            }
-        ],
-        "collegeCode": "10640",
-        "divisionName": "시각디자인과",
-        "divisionCode": "",
-        "majorName": "시각디자인과",
-        "majorCode": ""
-    },
-    {
         "id": "KMU_EUT_11596_01",
         "lectureCode": "11596",
         "sectionCode": "01",

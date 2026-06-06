@@ -1,3 +1,19 @@
+/**
+ * Timetable.jsx — 시간표 기능 컴포넌트 (계명대 성서캠퍼스 강의 기준)
+ *
+ * [핵심 기능]
+ *   1) 조건 기반 시간표 자동 추천 — 전공/학점/공강/선호시간 조건으로 서로 다른 후보 여러 개 생성
+ *   2) 분반·교수 교체 대체안(2안) — 1안과 같은 과목을 다른 분반으로 자동 구성
+ *   3) 자동 추천 / 직접 편집 탭 분리 + 강의 검색·필터
+ *   4) 1안 ↔ 2안 비교 화면
+ *
+ * [코드 구성 순서]
+ *   (1) 상수             : 요일/시간/색상/추천 파라미터/대학·학년 목록
+ *   (2) 유틸 함수        : 색상·시간 변환·검색·정렬·시간표 엔트리 생성
+ *   (3) 추천 엔진        : prepareRecommendation → buildTimetableCandidate → generateXxxCandidates
+ *   (4) TimetableGrid    : 시간표 그리드(머리글+강의 블록) 공통 렌더 컴포넌트
+ *   (5) Timetable(메인)  : 상태 → 파생값(useMemo) → 핸들러 → 화면(JSX)
+ */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import LoginRequiredSection from '../common/LoginRequiredSection'
 import './Timetable.css'
@@ -23,6 +39,7 @@ const TIMETABLE_COLORS = [
 ]
 const RECOMMEND_TARGET_CREDITS = 18
 const RECOMMEND_MAX_LECTURES = 8
+const RECOMMEND_CANDIDATE_COUNT = 3
 const DEFAULT_PREFERRED_TIME_RANGE = { start: '9:00', end: '19:00' }
 const PREFERRED_TIME_OPTIONS = [
   { key: '전체', label: '전체', start: '9:00', end: '19:00' },
@@ -40,7 +57,6 @@ const COLLEGE_ORDER = [
   '의과대학',
   '간호대학',
   '음악공연예술대학',
-  '미술대학',
   '체육대학',
   'Keimyung Adams College',
   'Tabula Rasa College',
@@ -72,6 +88,9 @@ const ENGINEERING_DIVISION_ORDER = [
 ]
 const ENGINEERING_DIVISION_ORDER_MAP = new Map(ENGINEERING_DIVISION_ORDER.map((division, index) => [division, index]))
 
+// ===== 유틸 함수: 색상 · 시간표 엔트리 =====
+
+// 시간표 강의 블록 색상을 고른다. 이미 쓰인 색은 피해서 색이 안 겹치게.
 function pickCourseColor(courses) {
   const usedColors = uniqueValues(courses.map(course => course.color))
   const availableColors = TIMETABLE_COLORS.filter(color => !usedColors.includes(color))
@@ -80,18 +99,21 @@ function pickCourseColor(courses) {
   return colorPool[Math.floor(Math.random() * colorPool.length)]
 }
 
+// 시간표 항목을 강의 단위로 식별하는 키 (색상·중복 판별에 사용)
 function getLectureKeyFromEntry(entry) {
   if (entry.lectureId) return entry.lectureId
   if (entry.lectureCode && entry.sectionCode) return `${entry.lectureCode}-${entry.sectionCode}`
   return entry.id
 }
 
+// "과목명__교수명" 키 — 같은 과목·같은 교수인지 비교할 때 사용(2안 대체 판별 등)
 function getNameProfessorKey(item) {
   if (!item?.name) return ''
 
   return `${item.name || ''}__${item.professor || ''}`
 }
 
+// 저장된 시간표 항목들에 강의별로 일관된 색을 부여
 function assignColorsToPlanEntries(entries) {
   const colorMap = new Map()
   const assignedColorEntries = []
@@ -129,6 +151,7 @@ function assignColorsToPlanEntries(entries) {
   return changed ? nextEntries : entries
 }
 
+// 강의 목록 -> 시간표에 요일·시간별 블록 배열로 변환 (한 강의가 여러 교시면 여러 블록)
 function localCreateTimetableEntries(lectures, colorByLectureId = new Map()) {
   return lectures.flatMap(lecture =>
     lecture.meetings.map((meeting, index) => ({
@@ -165,7 +188,6 @@ function formatRoom(room) {
     .replace(/^덕래관\s*/, '덕')
     .replace(/^스미스관\s*/, '스')
     .replace(/^동천관\s*/, '동')
-    .replace(/^대명비사관\s*/, '대')
     .replace(/^바우어관\s*/, '바')
     .replace(/^교양관\s*/, '교')
     .replace(/^사범관\s*/, '사')
@@ -176,10 +198,12 @@ function formatRoom(room) {
     .replace(/^K-Cloud관\s*/, 'KC')
 }
 
+// 빈 값 제거 + 중복 제거한 배열 반환
 function uniqueValues(values) {
   return [...new Set(values.filter(Boolean))]
 }
 
+// ===== 유틸: 학부/전공 필드 추출 (백엔드 응답 필드명이 달라도 호환) =====
 function getDivisionName(lecture) {
   return lecture.divisionName || lecture.department || ''
 }
@@ -196,6 +220,7 @@ function getMajorCode(lecture) {
   return lecture.majorCode || ''
 }
 
+// 대학/학부/전공 드롭다운 옵션을 지정 순서 → 코드 → 이름 순으로 정렬
 function sortAcademicOptions(entries, orderMap = new Map()) {
   return Array.from(entries)
     .sort(([nameA, codeA], [nameB, codeB]) => {
@@ -207,6 +232,7 @@ function sortAcademicOptions(entries, orderMap = new Map()) {
     .map(([name]) => name)
 }
 
+// "대학 / 학부 / 전공" 경로 문자열 생성 (강의 목록 표시용)
 function getAcademicPath(lecture) {
   const division = getDivisionName(lecture)
   const majorName = getMajorName(lecture)
@@ -218,16 +244,33 @@ function getAcademicPath(lecture) {
   return parts.filter(Boolean).join(' / ')
 }
 
+// ===== 유틸: 시간 변환 · 검색 · 충돌 검사 =====
+
+// 강의 시작/종료 시각을 "분" 단위 숫자로 변환 (시간 비교·겹침 계산용)
 function toMinutes({ startHour, startMinute = 0, endHour, endMinute = 0 }, type = 'start') {
   return type === 'start'
     ? Number(startHour) * 60 + Number(startMinute || 0)
     : Number(endHour) * 60 + Number(endMinute || 0)
 }
 
+// 같은 요일에 시간이 겹치는 강의가 있는지 검사
+function hasTimeConflict(newEntries, targetCourses) {
+  return newEntries.some(newEntry =>
+    targetCourses.some(course =>
+      course.lectureId !== newEntry.lectureId &&
+      course.day === newEntry.day &&
+      toMinutes(newEntry, 'start') < toMinutes(course, 'end') &&
+      toMinutes(newEntry, 'end') > toMinutes(course, 'start')
+    )
+  )
+}
+
+// 시:분 형식 문자열 (예: 9:00)
 function formatClock(hour, minute = 0) {
   return `${Number(hour)}:${String(Number(minute || 0)).padStart(2, '0')}`
 }
 
+// 강의의 여러 필드(과목명·교수·강의실·코드·학과 등)를 합쳐 키워드 포함 여부 검사 — 강의 검색용
 function includesKeyword(lecture, keyword) {
   const target = [
     lecture.name,
@@ -249,25 +292,32 @@ function includesKeyword(lecture, keyword) {
   return target.includes(keyword.toLowerCase())
 }
 
+// 수업시간 목록을 "요일 시작-종료 / ..." 문자열로 (강의 목록 표시용)
 function formatMeetings(meetings) {
   return meetings
     .map(meeting => `${meeting.day} ${formatClock(meeting.startHour, meeting.startMinute)}-${formatClock(meeting.endHour, meeting.endMinute)}`)
     .join(' / ')
 }
 
+// 강의에 수업시간(meetings) 정보가 있는지 — 시간 정보 없는 강의는 시간표에 못 넣음
 function hasLectureMeetings(lecture) {
   return Array.isArray(lecture.meetings) && lecture.meetings.length > 0
 }
 
+// 선호 시간대 프리셋(전체/오전/오후/16시 이후) 조회
 function getPreferredTimeOption(key) {
   return PREFERRED_TIME_OPTIONS.find(option => option.key === key) || PREFERRED_TIME_OPTIONS[0]
 }
 
+// ===== 추천 조건 필터 (강의가 사용자의 조건을 만족하는지) =====
+
+// 공강 요일 조건: 선택한 공강 요일에 수업이 하나도 없어야 통과
 function fitsFreeDays(lecture, freeDays) {
   if (freeDays.length === 0) return true
   return lecture.meetings.every(meeting => !freeDays.includes(meeting.day))
 }
 
+// "9:00" 같은 시각 문자열 → 분 단위 (파싱 실패 시 fallback)
 function clockToMinutes(time, fallback = TIMETABLE_START) {
   const [hour, minute] = String(time || '').split(':').map(Number)
   if (!Number.isFinite(hour) || !Number.isFinite(minute)) return fallback
@@ -275,6 +325,7 @@ function clockToMinutes(time, fallback = TIMETABLE_START) {
   return hour * 60 + minute
 }
 
+// 시각 입력값이 HH:MM 형식이고 범위가 맞는지 검증
 function isValidTimeValue(time) {
   if (!/^\d{1,2}:\d{2}$/.test(String(time || ''))) return false
 
@@ -282,12 +333,14 @@ function isValidTimeValue(time) {
   return hour >= 0 && hour <= 23 && minute >= 0 && minute < 60
 }
 
+// 선호 시간대 범위 검증 (시작·종료가 유효하고 시작 < 종료)
 function isValidPreferredTimeRange(timeRange) {
   if (!isValidTimeValue(timeRange.start) || !isValidTimeValue(timeRange.end)) return false
 
   return clockToMinutes(timeRange.start) < clockToMinutes(timeRange.end)
 }
 
+// 선호 시간대 조건: 모든 수업이 지정 시간대 안에 들어와야 통과
 function fitsPreferredTime(lecture, preferredTimeRange) {
   const preferredStart = clockToMinutes(preferredTimeRange.start, TIMETABLE_START)
   const preferredEnd = clockToMinutes(preferredTimeRange.end, TIMETABLE_END)
@@ -299,12 +352,14 @@ function fitsPreferredTime(lecture, preferredTimeRange) {
   })
 }
 
+// 희망 학년 조건: '전체'면 통과, 아니면 권장 학년이 일치해야 통과
 function fitsPreferredGrade(lecture, preferredGrade) {
   if (preferredGrade === ALL_OPTION) return true
 
   return Number(lecture.targetGrade) === Number(preferredGrade)
 }
 
+// 희망 학점 입력값을 1~24 범위 정수로 보정
 function normalizeDesiredCredits(value) {
   const credits = Number(value)
   if (!Number.isFinite(credits)) return RECOMMEND_TARGET_CREDITS
@@ -312,6 +367,9 @@ function normalizeDesiredCredits(value) {
   return Math.min(Math.max(Math.floor(credits), 1), 24)
 }
 
+// ===== 추천 엔진: 점수 · 난수 · 후보 생성 =====
+
+// 추천 우선순위 점수 (낮을수록 먼저 추천) — 전공필수면 -30 가산, 권장 학년이 낮을수록 우선
 function getRecommendationScore(lecture) {
   const courseType = lecture.courseType || ''
   const targetGrade = Number(lecture.targetGrade || 9)
@@ -320,6 +378,95 @@ function getRecommendationScore(lecture) {
   return requiredBonus + targetGrade
 }
 
+// 시간표 목록 요약 (강의 단위로 중복 제거) — 1안/2안 비교용
+function summarizePlanEntries(entries = []) {
+  const byLecture = new Map()
+  entries.forEach(entry => {
+    if (entry.lectureId && !byLecture.has(entry.lectureId)) byLecture.set(entry.lectureId, entry)
+  })
+  const lectures = [...byLecture.values()]
+  const credits = lectures.reduce((sum, entry) => sum + Number(entry.credit || 0), 0)
+  const usedDays = new Set(entries.map(entry => entry.day))
+  return {
+    lectures,
+    count: lectures.length,
+    credits,
+    freeDays: DAYS.filter(day => !usedDays.has(day)),
+  }
+}
+
+// 시드 기반 난수 — 같은 시드면 같은 결과라 후보 재현이 가능
+function createRng(seed) {
+  let state = (Number(seed) >>> 0) || 1
+  return function next() {
+    state |= 0
+    state = (state + 0x6d2b79f5) | 0
+    let t = Math.imul(state ^ (state >>> 15), 1 | state)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+// 시드 난수로 배열을 섞음 — 후보마다 다른 분반 조합을 뽑을 때 사용
+function seededShuffle(items, rng) {
+  const result = [...items]
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1))
+    ;[result[i], result[j]] = [result[j], result[i]]
+  }
+  return result
+}
+
+// 후보 시간표를 강의 id 집합으로 식별 -> 중복 후보 제거에 사용
+function getCandidateSignature(lectures) {
+  return lectures
+    .map(lecture => String(lecture.id))
+    .sort()
+    .join('|')
+}
+
+// 동일 과목 식별 키: 과목코드(lectureCode)가 같고 분반(sectionCode)만 다르면 같은 과목
+function getCourseKey(item) {
+  if (item?.lectureCode) return String(item.lectureCode)
+  return item?.name || ''
+}
+
+// 정렬된 후보 강의 목록으로 시간표 한 개를 그리디 구성
+function buildTimetableCandidate({ requiredList = [], orderedCandidates = [], targetCredits, maxLectures = RECOMMEND_MAX_LECTURES }) {
+  let courses = []
+  const lectures = []
+  const usedNames = new Set()
+  let credits = 0 // 누적 학점 (매 루프 재합산 대신 추가될 때만 갱신)
+
+  const tryAdd = lecture => {
+    if (!hasLectureMeetings(lecture) || usedNames.has(lecture.name)) return false
+
+    const color = pickCourseColor(courses)
+    const entries = localCreateTimetableEntries([lecture], new Map([[lecture.id, color]]))
+    if (hasTimeConflict(entries, courses)) return false
+
+    courses = [...courses, ...entries]
+    lectures.push(lecture)
+    usedNames.add(lecture.name)
+    credits += Number(lecture.credit || 0)
+    return true
+  }
+
+  for (const lecture of requiredList) {
+    if (!tryAdd(lecture)) {
+      return { ok: false, conflictLecture: lecture }
+    }
+  }
+
+  for (const lecture of orderedCandidates) {
+    if (lectures.length >= maxLectures || credits >= targetCredits) break
+    tryAdd(lecture)
+  }
+
+  return { ok: true, courses, lectures, credits }
+}
+
+// 강의 블록의 위치(top)·높이(height)·색을 CSS 인라인 스타일로 계산 (9~19시 기준 비율)
 function getCourseStyle(course) {
   const start = Math.max(toMinutes(course, 'start'), TIMETABLE_START)
   const end = Math.min(toMinutes(course, 'end'), TIMETABLE_END)
@@ -332,14 +479,55 @@ function getCourseStyle(course) {
   }
 }
 
+// 시간표 그리드(머리글 + 요일별 강의 블록) 공통 렌더 — 메인/추천 미리보기/비교 모달에서 재사용
+// 래퍼(.timetable 또는 .candidate-preview)는 호출부에서 감싼다.
+function TimetableGrid({ courses = [], showCode = false }) {
+  return (
+    <>
+      <div className="timetable-head">
+        <div className="th-time">시간</div>
+        {DAYS.map(day => <div key={day} className="th-day">{day}</div>)}
+      </div>
+      <div className="timetable-body">
+        <div className="time-axis">
+          {HOURS.map(hour => (
+            <div key={hour} className="td-time">{String(hour).padStart(2, '0')}:00</div>
+          ))}
+        </div>
+        <div className="day-lanes">
+          {DAYS.map(day => (
+            <div key={day} className="day-lane">
+              {courses
+                .filter(course => course.day === day)
+                .sort((a, b) => toMinutes(a, 'start') - toMinutes(b, 'start'))
+                .map(course => (
+                  <div
+                    key={course.id}
+                    className={`course-block ${toMinutes(course, 'end') - toMinutes(course, 'start') <= 60 ? 'compact' : ''}`}
+                    style={getCourseStyle(course)}
+                  >
+                    <strong>{course.name}</strong>
+                    <span>{formatRoom(course.room)} {course.professor}</span>
+                    {showCode && <em>{course.lectureCode}-{course.sectionCode}</em>}
+                  </div>
+                ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  )
+}
+
 export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans, setSavedPlans, activePlan, setActivePlan, onSaveData }) {
-  const [courses, setCourses] = useState(savedPlans[activePlan] || [])
-  const savedPlansRef = useRef(savedPlans)
+  // ===== 상태(state) =====
+  const [courses, setCourses] = useState(savedPlans[activePlan] || []) // 현재 보고 있는 안(1안/2안)의 시간표 블록들
+  const savedPlansRef = useRef(savedPlans) // 최신 savedPlans 참조 (비동기 콜백에서 stale 값 방지)
   const [isSettingOpen, setIsSettingOpen] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [lectureType, setLectureType] = useState('전공')
 
-  // 부모(App.js)에서 백엔드 데이터를 가져오면 courses 상태를 동기화
+  // App.js에서 백엔드 데이터를 가져오면 courses 상태를 동기화
   useEffect(() => {
     savedPlansRef.current = savedPlans
   }, [savedPlans])
@@ -375,9 +563,17 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
   const [preferredTimeRange, setPreferredTimeRange] = useState(DEFAULT_PREFERRED_TIME_RANGE)
   const [desiredCredits, setDesiredCredits] = useState(String(RECOMMEND_TARGET_CREDITS))
   const [preferredGrade, setPreferredGrade] = useState(ALL_OPTION)
+  const [isCompareOpen, setIsCompareOpen] = useState(false)
   const [lectureGradeFilters, setLectureGradeFilters] = useState([])
   const [lectureCreditFilters, setLectureCreditFilters] = useState([])
   const [isLectureFilterOpen, setIsLectureFilterOpen] = useState(false)
+  // 자동 생성 후보(미리보기) 상태
+  const [recommendCandidates, setRecommendCandidates] = useState([])
+  const [selectedCandidateIndex, setSelectedCandidateIndex] = useState(0)
+  const [recommendSeed, setRecommendSeed] = useState(0)
+  const [recommendMode, setRecommendMode] = useState('condition')
+  // 모달 안 탭: 'auto'(자동 추천) | 'manual'(직접 편집)
+  const [settingTab, setSettingTab] = useState('auto')
 
   function showMessage(text, type = 'success') {
     setMessage(text)
@@ -394,6 +590,8 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     return () => clearTimeout(timer)
   }, [toastMessage])
 
+  // ===== 파생 값 (useMemo로 캐시: 입력이 바뀔 때만 재계산) =====
+  // 현재 시간표에 들어있는 강의 id 집합 (중복 추가 방지용)
   const selectedLectureIds = useMemo(
     () => new Set(courses.map(course => course.lectureId)),
     [courses]
@@ -509,6 +707,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
   const activeLectureFilterCount = lectureGradeFilters.length + lectureCreditFilters.length
   const hasActiveLectureFilters = activeLectureFilterCount > 0
 
+  // 강의 검색/추천: 분류(전공·교양)·대학·학부·전공·학년·학점·키워드 필터 적용한 결과
   const filteredLectures = useMemo(() => {
     const keyword = searchText.trim()
     return lectureCatalog.filter(lecture => {
@@ -535,6 +734,8 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     [filteredLectures]
   )
 
+  // ===== 핸들러 (필터/조건 입력 변경) =====
+  // 전공 <-> 교양 분류 전환 (검색어 초기화)
   function changeLectureType(nextType) {
     setLectureType(nextType)
     setSearchText('')
@@ -627,17 +828,10 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
   }
 
   function hasConflict(newEntries, targetCourses = courses) {
-    return newEntries.some(newEntry =>
-      targetCourses.some(course =>
-        course.lectureId !== newEntry.lectureId &&
-        course.day === newEntry.day &&
-        toMinutes(newEntry, 'start') < toMinutes(course, 'end') &&
-        toMinutes(newEntry, 'end') > toMinutes(course, 'start')
-      )
-    )
+    return hasTimeConflict(newEntries, targetCourses)
   }
 
-  // 시간표 생성 모달은 수강신청 DB를 바꾸지 않고 현재 1안/2안만 편집합니다.
+  // 시간표 생성 모달은 수강신청 DB를 바꾸지 않고 현재 1안/2안만 편집
   function updateActivePlan(updater) {
     setCourses(prevCourses => {
       const nextCourses = updater(prevCourses)
@@ -653,6 +847,8 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     })
   }
 
+  // ===== 핸들러 (시간표 편집/추천/저장) =====
+  // 강의 1개를 현재 안에 추가 — 이미 추가됨/시간 충돌이면 충돌 안내
   function addLecture(lecture) {
     if (selectedLectureIds.has(lecture.id)) {
       showMessage('이미 시간표에 추가된 강의입니다.', 'error')
@@ -681,6 +877,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     showMessage('추가한 강의를 모두 삭제했습니다.')
   }
 
+  // 시간표 생성 창 열기 — 추천 조건·필터·후보를 초기 상태로 리셋
   function openSettingPanel() {
     setSearchText('')
     setPreferredTime('전체')
@@ -690,6 +887,10 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     setLectureGradeFilters([])
     setLectureCreditFilters([])
     setIsLectureFilterOpen(false)
+    setRecommendSeed(0)
+    setRecommendMode('condition')
+    setSettingTab('auto')
+    clearRecommendCandidates()
     showMessage('')
     setIsSettingOpen(true)
   }
@@ -697,6 +898,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
   function closeSettingPanel() {
     setSearchText('')
     setIsLectureFilterOpen(false)
+    clearRecommendCandidates()
     showMessage('')
     setIsSettingOpen(false)
   }
@@ -710,40 +912,34 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     openSettingPanel()
   }
 
-  function generateRecommendedPlan() {
+  function clearRecommendCandidates() {
+    setRecommendCandidates([])
+    setSelectedCandidateIndex(0)
+  }
+
+  // 추천 조건 검증 + 후보 강의 정렬 준비. 실패 시 { ok:false, error } 반환.
+  function prepareRecommendation() {
     if (!isValidPreferredTimeRange(preferredTimeRange)) {
-      showMessage('선호 시간대는 09:00 형식으로 입력하고 시작 시간이 종료 시간보다 빨라야 합니다.', 'error')
-      return
+      return { ok: false, error: '선호 시간대는 09:00 형식으로 입력하고 시작 시간이 종료 시간보다 빨라야 합니다.' }
     }
-
     if (!desiredCredits) {
-      showMessage('이번 학기 희망 학점을 입력해 주세요.', 'error')
-      return
+      return { ok: false, error: '이번 학기 희망 학점을 입력해 주세요.' }
     }
-
-    const targetCredits = normalizeDesiredCredits(desiredCredits)
 
     const requiredWithoutMeetings = requiredLectures.find(lecture => !hasLectureMeetings(lecture))
     if (requiredWithoutMeetings) {
-      showMessage(`${requiredWithoutMeetings.name} 강의 시간이 없어 추천 시간표에 넣을 수 없습니다.`, 'error')
-      return
+      return { ok: false, error: `${requiredWithoutMeetings.name} 강의 시간이 없어 추천 시간표에 넣을 수 없습니다.` }
     }
-
     const requiredOffDayLecture = requiredLectures.find(lecture => !fitsFreeDays(lecture, freeDays))
     if (requiredOffDayLecture) {
-      showMessage(`${requiredOffDayLecture.name}이 선택한 공강 요일에 포함되어 있습니다.`, 'error')
-      return
+      return { ok: false, error: `${requiredOffDayLecture.name}이 선택한 공강 요일에 포함되어 있습니다.` }
     }
-
     const requiredTimeLecture = requiredLectures.find(lecture => !fitsPreferredTime(lecture, preferredTimeRange))
     if (requiredTimeLecture) {
-      showMessage(`${requiredTimeLecture.name}이 선택한 선호 시간대 밖에 있습니다.`, 'error')
-      return
+      return { ok: false, error: `${requiredTimeLecture.name}이 선택한 선호 시간대 밖에 있습니다.` }
     }
 
-    let nextCourses = []
-    const nextLectures = []
-    const selectedNames = new Set()
+    const targetCredits = normalizeDesiredCredits(desiredCredits)
     const savedPlansSnapshot = savedPlansRef.current || savedPlans
     const otherPlanEntries = activePlan === 'plan2' ? (savedPlansSnapshot.plan1 || []) : []
     const excludedLectureKeys = activePlan === 'plan2'
@@ -758,31 +954,11 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     const getAlternativePenalty = lecture =>
       activePlan === 'plan2' && otherPlanNameProfessorKeys.has(getNameProfessorKey(lecture)) ? 100 : 0
 
-    const tryAddLecture = lecture => {
-      if (!hasLectureMeetings(lecture) || selectedNames.has(lecture.name)) return false
-
-      const lectureColor = pickCourseColor(nextCourses)
-      const newEntries = localCreateTimetableEntries([lecture], new Map([[lecture.id, lectureColor]]))
-      if (hasConflict(newEntries, nextCourses)) return false
-
-      nextCourses = [...nextCourses, ...newEntries]
-      nextLectures.push(lecture)
-      selectedNames.add(lecture.name)
-      return true
-    }
-
-    const sortedRequiredLectures = [...requiredLectures].sort((a, b) =>
+    const requiredOrdered = [...requiredLectures].sort((a, b) =>
       a.name.localeCompare(b.name, 'ko') || a.lectureCode.localeCompare(b.lectureCode, 'ko')
     )
 
-    for (const lecture of sortedRequiredLectures) {
-      if (!tryAddLecture(lecture)) {
-        showMessage(`필수 과목끼리 시간이 겹치거나 같은 과목 분반이 중복됩니다: ${lecture.name}`, 'error')
-        return
-      }
-    }
-
-    const recommendationCandidates = filteredLectures
+    const pool = filteredLectures
       .filter(lecture =>
         !requiredLectureIdSet.has(lecture.id) &&
         !isExcludedByOtherPlan(lecture) &&
@@ -798,31 +974,173 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
         a.name.localeCompare(b.name, 'ko')
       )
 
-    for (const lecture of recommendationCandidates) {
-      const totalCredits = nextLectures.reduce((sum, selectedLecture) => sum + Number(selectedLecture.credit || 0), 0)
-      if (nextLectures.length >= RECOMMEND_MAX_LECTURES || totalCredits >= targetCredits) break
-      tryAddLecture(lecture)
+    // 후보별로 다른 조합을 뽑되 순서는 유지
+    const scoreOf = lecture => getAlternativePenalty(lecture) * 1000 + getRecommendationScore(lecture)
+
+    return { ok: true, requiredOrdered, pool, targetCredits, scoreOf }
+  }
+
+  // 후보 재정렬 — 품질 순서는 대체로 유지하되 후보마다 다른 조합 유도
+  function orderPoolForVariant(pool, scoreOf, rng, jitter) {
+    return pool
+      .map(lecture => ({ lecture, key: scoreOf(lecture) + (rng() - 0.5) * jitter }))
+      .sort((a, b) => a.key - b.key)
+      .map(item => item.lecture)
+  }
+
+  // 조건 기반으로 서로 다른 시간표 후보 여러 개를 생성
+  function generateConditionCandidates(seed) {
+    const prepared = prepareRecommendation()
+    if (!prepared.ok) {
+      clearRecommendCandidates()
+      showMessage(prepared.error, 'error')
+      return
     }
 
-    if (nextLectures.length === 0) {
+    const { requiredOrdered, pool, targetCredits, scoreOf } = prepared
+    const rng = createRng(seed + 1)
+    const results = []
+    const signatures = new Set()
+    const maxAttempts = 12
+
+    for (let attempt = 0; results.length < RECOMMEND_CANDIDATE_COUNT && attempt < maxAttempts; attempt++) {
+      const jitter = attempt === 0 ? 0 : 4 + attempt * 3
+      const ordered = attempt === 0 ? pool : orderPoolForVariant(pool, scoreOf, rng, jitter)
+      const built = buildTimetableCandidate({ requiredList: requiredOrdered, orderedCandidates: ordered, targetCredits })
+
+      if (!built.ok) {
+        clearRecommendCandidates()
+        showMessage(`필수 과목끼리 시간이 겹치거나 같은 과목 분반이 중복됩니다: ${built.conflictLecture.name}`, 'error')
+        return
+      }
+      if (built.lectures.length === 0) continue
+
+      const signature = getCandidateSignature(built.lectures)
+      if (signatures.has(signature)) continue
+
+      signatures.add(signature)
+      results.push({ ...built, mode: 'condition', signature })
+    }
+
+    if (results.length === 0) {
+      clearRecommendCandidates()
       showMessage('선택한 조건에 맞는 추천 강의가 없습니다.', 'error')
       return
     }
 
-    const recommendedCredits = nextLectures.reduce((sum, lecture) => sum + Number(lecture.credit || 0), 0)
-    const planLabel = activePlan === 'plan1' ? '1안' : '2안'
+    setRecommendMode('condition')
+    setRecommendCandidates(results)
+    setSelectedCandidateIndex(0)
+    showMessage(`조건에 맞는 시간표 후보 ${results.length}개를 만들었어요. 카드를 골라 적용하세요.`)
+  }
 
-    setCourses(nextCourses)
+  // 1안 과목을 동일 과목(lectureCode)의 다른 분반·교수로 교체한 대체 시간표(2안) 후보 생성
+  function generateAlternativeCandidates(seed) {
+    const savedPlansSnapshot = savedPlansRef.current || savedPlans
+    const plan1Entries = savedPlansSnapshot.plan1 || []
+
+    if (plan1Entries.length === 0) {
+      clearRecommendCandidates()
+      showMessage('먼저 1안을 만들어 주세요. 1안 과목을 기준으로 대체 분반을 찾습니다.', 'error')
+      return
+    }
+
+    const plan1Lectures = uniqueValues(plan1Entries.map(entry => entry.lectureId))
+      .map(lectureId => lectureCatalog.find(lecture => String(lecture.id) === String(lectureId)))
+      .filter(Boolean)
+
+    if (plan1Lectures.length === 0) {
+      clearRecommendCandidates()
+      showMessage('1안 강의 정보를 찾을 수 없습니다.', 'error')
+      return
+    }
+
+    const courseGroups = plan1Lectures.map(original => ({
+      original,
+      alternatives: lectureCatalog.filter(lecture =>
+        getCourseKey(lecture) === getCourseKey(original) &&
+        String(lecture.id) !== String(original.id) &&
+        hasLectureMeetings(lecture)
+      ),
+    }))
+
+    const hasAnyAlternative = courseGroups.some(group => group.alternatives.length > 0)
+    const rng = createRng(seed + 1)
+    const results = []
+    const signatures = new Set()
+    const maxAttempts = 14
+
+    for (let attempt = 0; results.length < RECOMMEND_CANDIDATE_COUNT && attempt < maxAttempts; attempt++) {
+      let courses = []
+      const chosen = []
+      let swappedCount = 0
+
+      for (const group of courseGroups) {
+        const altOrder = attempt === 0 ? group.alternatives : seededShuffle(group.alternatives, rng)
+        const tryOrder = [...altOrder, group.original] // 다른 분반 우선, 안 되면 원래 분반
+
+        for (const section of tryOrder) {
+          const color = pickCourseColor(courses)
+          const entries = localCreateTimetableEntries([section], new Map([[section.id, color]]))
+          if (hasTimeConflict(entries, courses)) continue
+
+          courses = [...courses, ...entries]
+          chosen.push(section)
+          if (String(section.id) !== String(group.original.id)) swappedCount++
+          break
+        }
+      }
+
+      if (chosen.length === 0) continue
+
+      const signature = getCandidateSignature(chosen)
+      if (signatures.has(signature)) continue
+
+      signatures.add(signature)
+      const credits = chosen.reduce((sum, lecture) => sum + Number(lecture.credit || 0), 0)
+      results.push({ ok: true, courses, lectures: chosen, credits, mode: 'alternative', signature, swappedCount })
+    }
+
+    if (results.length === 0) {
+      clearRecommendCandidates()
+      showMessage('대체 시간표를 만들 수 없습니다. 분반이 서로 겹치거나 대체 분반이 없습니다.', 'error')
+      return
+    }
+
+    setRecommendMode('alternative')
+    setRecommendCandidates(results)
+    setSelectedCandidateIndex(0)
+    const note = hasAnyAlternative ? '' : ' (대체 분반이 없어 기존 분반으로 구성했어요.)'
+    showMessage(`1안 기반 대체 시간표 후보 ${results.length}개를 만들었어요.${note}`)
+  }
+
+  function regenerateCandidates() {
+    const nextSeed = recommendSeed + 1
+    setRecommendSeed(nextSeed)
+    if (recommendMode === 'alternative') {
+      generateAlternativeCandidates(nextSeed)
+    } else {
+      generateConditionCandidates(nextSeed)
+    }
+  }
+
+  // 선택한 후보를 현재 1안/2안에 실제 반영(커밋)
+  function applyCandidate(index) {
+    const candidate = recommendCandidates[index]
+    if (!candidate) return
+
+    const planLabel = activePlan === 'plan1' ? '1안' : '2안'
+    setCourses(candidate.courses)
     setSavedPlans(prevPlans => {
       const nextPlans = {
         ...prevPlans,
-        [activePlan]: nextCourses,
+        [activePlan]: candidate.courses,
       }
       savedPlansRef.current = nextPlans
       return nextPlans
     })
-    setToastMessage(`조건에 맞는 ${planLabel}을 생성했습니다.`)
-    showMessage(`조건에 맞는 ${planLabel}을 생성했습니다. (${nextLectures.length}과목, ${recommendedCredits}/${targetCredits}학점)`)
+    closeSettingPanel()
+    setToastMessage(`${planLabel}에 적용했어요. (${candidate.lectures.length}과목, ${candidate.credits}학점)`)
   }
 
   function openSavedPlan(planKey) {
@@ -830,6 +1148,8 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     const plansSnapshot = savedPlansRef.current || savedPlans
     setActivePlan(planKey)
     setCourses(plansSnapshot[planKey] || [])
+    setRecommendMode('condition')
+    clearRecommendCandidates()
     setToastMessage(`${planLabel}을 불러왔습니다.`)
     showMessage(`${planLabel}을 불러왔습니다.`)
   }
@@ -841,8 +1161,139 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     setToastMessage(`${activePlan === 'plan1' ? '1안' : '2안'}이 저장되었습니다.`)
   }
 
+  // 강의 범위 필터(전공/교양 + 대학·학부·전공 + 학년/학점) — 자동 추천/직접 편집 두 탭에서 공유
+  const lectureFilterPanel = (
+    <div className="lecture-filter-panel">
+      <div className="lecture-filter-toolbar">
+        <div className="lecture-type-tabs" aria-label="강의 분류">
+          {['전공', '교양'].map(type => (
+            <button
+              key={type}
+              type="button"
+              className={lectureType === type ? 'active' : ''}
+              onClick={() => changeLectureType(type)}
+            >
+              {type}
+            </button>
+          ))}
+        </div>
+        <div className="lecture-filter-actions">
+          {hasActiveLectureFilters && (
+            <button type="button" className="lecture-filter-reset" onClick={clearLectureDetailFilters}>
+              초기화
+            </button>
+          )}
+          <button
+            type="button"
+            className={`lecture-filter-toggle ${isLectureFilterOpen || hasActiveLectureFilters ? 'active' : ''}`}
+            aria-expanded={isLectureFilterOpen}
+            onClick={() => setIsLectureFilterOpen(prev => !prev)}
+          >
+            필터{hasActiveLectureFilters ? ` ${activeLectureFilterCount}` : ''}
+          </button>
+        </div>
+      </div>
+
+      {isLectureFilterOpen && (
+        <div className="lecture-quick-filters">
+          <div className="lecture-filter-group">
+            <strong>학년</strong>
+            <div className="lecture-filter-chip-row">
+              {GRADE_OPTIONS.map(option => {
+                const isAllOption = option.value === ALL_OPTION
+                const isActive = isAllOption ? lectureGradeFilters.length === 0 : lectureGradeFilters.includes(option.value)
+
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={isActive ? 'active' : ''}
+                    aria-pressed={isActive}
+                    onClick={() => toggleLectureGradeFilter(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <div className="lecture-filter-group">
+            <strong>학점</strong>
+            <div className="lecture-filter-chip-row">
+              {[ALL_OPTION, ...creditFilterOptions].map(credit => {
+                const isAllOption = credit === ALL_OPTION
+                const isActive = isAllOption ? lectureCreditFilters.length === 0 : lectureCreditFilters.includes(credit)
+
+                return (
+                  <button
+                    key={credit}
+                    type="button"
+                    className={isActive ? 'active' : ''}
+                    aria-pressed={isActive}
+                    onClick={() => toggleLectureCreditFilter(credit)}
+                  >
+                    {isAllOption ? credit : `${credit}학점`}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {lectureType === '전공' ? (
+        <div className="lecture-filter-grid major-filter-grid">
+          <label>
+            대학/계열
+            <select value={selectedCollege} onChange={event => changeCollege(event.target.value)}>
+              {colleges.map(college => <option key={college} value={college}>{college}</option>)}
+            </select>
+          </label>
+          <label>
+            학부/과
+            <select value={selectedDivision} onChange={event => changeDivision(event.target.value)}>
+              {divisions.map(division => <option key={division} value={division}>{division}</option>)}
+            </select>
+          </label>
+          <label>
+            전공
+            <select value={selectedMajor} onChange={event => setSelectedMajor(event.target.value)}>
+              {majors.map(majorName => <option key={majorName} value={majorName}>{majorName}</option>)}
+            </select>
+          </label>
+        </div>
+      ) : (
+        <div className="lecture-filter-grid">
+          <label>
+            교양 구분
+            <select value={selectedLiberalType} onChange={event => changeLiberalType(event.target.value)}>
+              {liberalTypes.map(type => <option key={type} value={type}>{type}</option>)}
+            </select>
+          </label>
+          <label>
+            교양 과목/영역
+            <select value={selectedLiberalArea} onChange={event => setSelectedLiberalArea(event.target.value)}>
+              <option value="전체">전체</option>
+              {liberalAreas.map(area => <option key={area} value={area}>{area}</option>)}
+            </select>
+          </label>
+        </div>
+      )}
+    </div>
+  )
+
+  const lectureSearchField = (
+    <input
+      className="lecture-search-input"
+      value={searchText}
+      onChange={event => setSearchText(event.target.value)}
+      placeholder="강의명, 교수명, 강의코드, 강의실 검색"
+    />
+  )
+
   return (
     <div className="timetable-wrap">
+      {/* 헤더: 제목 + 1안/2안 탭 + [1안·2안 비교][시간표 생성] 버튼 */}
       <div className="timetable-header-row">
         <div className="timetable-title-area">
           <h2 className="section-title">시간표</h2>
@@ -865,48 +1316,28 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
             </button>
           </div>
         </div>
-        <button
-          className="btn-secondary"
-          disabled={!isLoggedIn}
-          onClick={toggleSettingPanel}
-        >
-          시간표 생성
-        </button>
+        <div className="timetable-header-actions">
+          <button
+            className="btn-secondary"
+            disabled={!isLoggedIn}
+            onClick={() => setIsCompareOpen(true)}
+          >
+            1안·2안 비교
+          </button>
+          <button
+            className="btn-secondary"
+            disabled={!isLoggedIn}
+            onClick={toggleSettingPanel}
+          >
+            시간표 생성
+          </button>
+        </div>
       </div>
 
+      {/* 메인 시간표 컨테이너 (로그인 필요). 현재 안의 강의를 주간 표로 표시 */}
       <LoginRequiredSection isLoggedIn={isLoggedIn} className="timetable-container">
         <div className="timetable">
-          <div className="timetable-head">
-            <div className="th-time">시간</div>
-            {DAYS.map(day => <div key={day} className="th-day">{day}</div>)}
-          </div>
-          <div className="timetable-body">
-            <div className="time-axis">
-              {HOURS.map(hour => (
-                <div key={hour} className="td-time">{String(hour).padStart(2, '0')}:00</div>
-              ))}
-            </div>
-            <div className="day-lanes">
-              {DAYS.map(day => (
-                <div key={day} className="day-lane">
-                  {courses
-                    .filter(course => course.day === day)
-                    .sort((a, b) => toMinutes(a, 'start') - toMinutes(b, 'start'))
-                    .map(course => (
-                      <div
-                        key={course.id}
-                        className={`course-block ${toMinutes(course, 'end') - toMinutes(course, 'start') <= 60 ? 'compact' : ''}`}
-                        style={getCourseStyle(course)}
-                      >
-                        <strong>{course.name}</strong>
-                        <span>{formatRoom(course.room)} {course.professor}</span>
-                        <em>{course.lectureCode}-{course.sectionCode}</em>
-                      </div>
-                    ))}
-                </div>
-              ))}
-            </div>
-          </div>
+          <TimetableGrid courses={courses} showCode />
         </div>
         {toastMessage && (
           <div className="timetable-toast" role="status" aria-live="polite">
@@ -915,6 +1346,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
         )}
       </LoginRequiredSection>
 
+      {/* 시간표 생성 — [자동 추천] / [직접 편집] 탭으로 구성 */}
       {isLoggedIn && isSettingOpen && (
         <div className="timetable-setting-backdrop">
           <div className="timetable-setting-panel">
@@ -932,21 +1364,62 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
               {/* <button type="button" onClick={() => loadPlan(DEFAULT_PLAN_IDS, '기본 시간표')}>초기화</button> */}
             </div>
 
+            <div className="setting-mode-tabs" role="tablist" aria-label="시간표 생성 방식">
+              <button
+                type="button"
+                role="tab"
+                className={settingTab === 'auto' ? 'active' : ''}
+                aria-selected={settingTab === 'auto'}
+                onClick={() => setSettingTab('auto')}
+              >
+                자동 추천
+              </button>
+              <button
+                type="button"
+                role="tab"
+                className={settingTab === 'manual' ? 'active' : ''}
+                aria-selected={settingTab === 'manual'}
+                onClick={() => setSettingTab('manual')}
+              >
+                직접 편집
+              </button>
+            </div>
+
+            {/* [자동 추천] 탭: 추천 조건(강의 범위·필수과목·공강·학점·선호시간) → '시간표 추천'/'대체안' */}
+            {settingTab === 'auto' && (
+            <>
             <section className="auto-recommend-section">
               <div className="lecture-search-header">
                 <div>
                   <h4>추천 조건</h4>
-                  <span>선택한 조건으로 {activePlan === 'plan1' ? '1안' : '2안'}을 자동 생성합니다.</span>
+                  <span>선택한 조건으로 {activePlan === 'plan1' ? '1안' : '2안'} 후보를 여러 개 만들어 비교합니다.</span>
                 </div>
-                <button type="button" className="btn-primary" onClick={generateRecommendedPlan}>
-                  {activePlan === 'plan1' ? '1안' : '2안'} 자동 생성
-                </button>
+                <div className="recommend-actions">
+                  {activePlan === 'plan2' && (
+                    <button type="button" className="btn-secondary" onClick={() => generateAlternativeCandidates(recommendSeed)}>
+                      1안 기반 대체안 (분반·교수 교체)
+                    </button>
+                  )}
+                  <button type="button" className="btn-primary" onClick={() => generateConditionCandidates(recommendSeed)}>
+                    시간표 추천
+                  </button>
+                </div>
+              </div>
+
+              <div className="recommend-scope">
+                <div className="recommend-scope-head">
+                  <strong>강의 범위</strong>
+                </div>
+                {lectureFilterPanel}
+                {lectureSearchField}
               </div>
 
               <div className="recommend-condition-grid">
                 <div className="recommend-condition-card required-course-card">
-                  <strong>필수 과목 선택</strong>
-                  <span>현재 검색 결과에서 필수로 넣을 과목을 체크하세요.</span>
+                  <div className="required-course-head">
+                    <strong>필수 과목 선택</strong>
+                    <span>{requiredLectureOptions.length}개</span>
+                  </div>
                   <div className="required-course-list">
                     {requiredLectureOptions.length === 0 ? (
                       <p>선택할 수 있는 강의가 없습니다.</p>
@@ -1060,6 +1533,86 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
               </div>
             </section>
 
+            {/* 추천 결과 모달: 후보 카드 목록 + 선택 후보 미리보기 그리드 + '이 시간표 적용' */}
+            {recommendCandidates.length > 0 && (() => {
+              const selectedCandidate = recommendCandidates[selectedCandidateIndex] || recommendCandidates[0]
+              const previewCourses = selectedCandidate ? selectedCandidate.courses : []
+              return (
+                <div className="timetable-setting-backdrop timetable-candidate-backdrop">
+                  <div className="timetable-setting-panel timetable-candidate-panel">
+                    <div className="candidate-modal-top">
+                      <button type="button" className="btn-back" onClick={clearRecommendCandidates}>
+                        ← 이전 화면으로 돌아가기
+                      </button>
+                    </div>
+                <section className="recommend-candidates">
+                  <div className="lecture-search-header">
+                    <div>
+                      <h4>추천 후보</h4>
+                      <span>
+                        {recommendMode === 'alternative'
+                          ? '1안과 같은 과목을 다른 분반·교수로 바꾼 대체안입니다.'
+                          : '마음에 드는 후보를 고른 뒤 적용하세요.'}
+                      </span>
+                    </div>
+                    <button type="button" className="btn-secondary" onClick={regenerateCandidates}>
+                      다시 추천
+                    </button>
+                  </div>
+
+                  <div className="candidate-card-row">
+                    {recommendCandidates.map((candidate, index) => {
+                      const usedDays = new Set(candidate.courses.map(course => course.day))
+                      const freeDaysOfCandidate = DAYS.filter(day => !usedDays.has(day))
+                      const isActive = index === selectedCandidateIndex
+
+                      return (
+                        <button
+                          key={candidate.signature}
+                          type="button"
+                          className={`candidate-card ${isActive ? 'active' : ''}`}
+                          aria-pressed={isActive}
+                          onClick={() => setSelectedCandidateIndex(index)}
+                        >
+                          <div className="candidate-card-head">
+                            <strong>후보 {index + 1}</strong>
+                            <span>{candidate.lectures.length}과목 · {candidate.credits}학점</span>
+                          </div>
+                          <div className="candidate-summary">
+                            공강 {freeDaysOfCandidate.length > 0 ? freeDaysOfCandidate.join('·') : '없음'}
+                            {candidate.mode === 'alternative' && typeof candidate.swappedCount === 'number'
+                              ? ` · 분반 교체 ${candidate.swappedCount}개`
+                              : ''}
+                          </div>
+                          <div className="candidate-course-chips">
+                            {candidate.lectures.map(lecture => (
+                              <span key={lecture.id} className="candidate-course-chip">{lecture.name}</span>
+                            ))}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  <div className="candidate-preview">
+                    <TimetableGrid courses={previewCourses} />
+                  </div>
+
+                  <div className="candidate-actions">
+                    <button type="button" className="btn-primary" onClick={() => applyCandidate(selectedCandidateIndex)}>
+                      이 시간표 {activePlan === 'plan1' ? '1안' : '2안'}에 적용
+                    </button>
+                  </div>
+                </section>
+                  </div>
+                </div>
+              )
+            })()}
+            </>
+            )}
+
+            {/* [직접 편집] 탭: 강의 검색·필터로 직접 추가 / 추가한 강의 관리 */}
+            {settingTab === 'manual' && (
             <div className="lecture-manager">
               <section className="lecture-search-section">
                 <div className="lecture-search-header">
@@ -1067,130 +1620,9 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
                   <span>{filteredLectures.length}개 강의</span>
                 </div>
 
-                <div className="lecture-filter-panel">
-                  <div className="lecture-filter-toolbar">
-                    <div className="lecture-type-tabs" aria-label="강의 분류">
-                      {['전공', '교양'].map(type => (
-                        <button
-                          key={type}
-                          type="button"
-                          className={lectureType === type ? 'active' : ''}
-                          onClick={() => changeLectureType(type)}
-                        >
-                          {type}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="lecture-filter-actions">
-                      {hasActiveLectureFilters && (
-                        <button type="button" className="lecture-filter-reset" onClick={clearLectureDetailFilters}>
-                          초기화
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className={`lecture-filter-toggle ${isLectureFilterOpen || hasActiveLectureFilters ? 'active' : ''}`}
-                        aria-expanded={isLectureFilterOpen}
-                        onClick={() => setIsLectureFilterOpen(prev => !prev)}
-                      >
-                        필터{hasActiveLectureFilters ? ` ${activeLectureFilterCount}` : ''}
-                      </button>
-                    </div>
-                  </div>
+                {lectureFilterPanel}
 
-                  {isLectureFilterOpen && (
-                    <div className="lecture-quick-filters">
-                      <div className="lecture-filter-group">
-                        <strong>학년</strong>
-                        <div className="lecture-filter-chip-row">
-                          {GRADE_OPTIONS.map(option => {
-                            const isAllOption = option.value === ALL_OPTION
-                            const isActive = isAllOption ? lectureGradeFilters.length === 0 : lectureGradeFilters.includes(option.value)
-
-                            return (
-                              <button
-                                key={option.value}
-                                type="button"
-                                className={isActive ? 'active' : ''}
-                                aria-pressed={isActive}
-                                onClick={() => toggleLectureGradeFilter(option.value)}
-                              >
-                                {option.label}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
-                      <div className="lecture-filter-group">
-                        <strong>학점</strong>
-                        <div className="lecture-filter-chip-row">
-                          {[ALL_OPTION, ...creditFilterOptions].map(credit => {
-                            const isAllOption = credit === ALL_OPTION
-                            const isActive = isAllOption ? lectureCreditFilters.length === 0 : lectureCreditFilters.includes(credit)
-
-                            return (
-                              <button
-                                key={credit}
-                                type="button"
-                                className={isActive ? 'active' : ''}
-                                aria-pressed={isActive}
-                                onClick={() => toggleLectureCreditFilter(credit)}
-                              >
-                                {isAllOption ? credit : `${credit}학점`}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {lectureType === '전공' ? (
-                    <div className="lecture-filter-grid major-filter-grid">
-                      <label>
-                        대학/계열
-                        <select value={selectedCollege} onChange={event => changeCollege(event.target.value)}>
-                          {colleges.map(college => <option key={college} value={college}>{college}</option>)}
-                        </select>
-                      </label>
-                      <label>
-                        학부/과
-                        <select value={selectedDivision} onChange={event => changeDivision(event.target.value)}>
-                          {divisions.map(division => <option key={division} value={division}>{division}</option>)}
-                        </select>
-                      </label>
-                      <label>
-                        전공
-                        <select value={selectedMajor} onChange={event => setSelectedMajor(event.target.value)}>
-                          {majors.map(majorName => <option key={majorName} value={majorName}>{majorName}</option>)}
-                        </select>
-                      </label>
-                    </div>
-                  ) : (
-                    <div className="lecture-filter-grid">
-                      <label>
-                        교양 구분
-                        <select value={selectedLiberalType} onChange={event => changeLiberalType(event.target.value)}>
-                          {liberalTypes.map(type => <option key={type} value={type}>{type}</option>)}
-                        </select>
-                      </label>
-                      <label>
-                        교양 과목/영역
-                        <select value={selectedLiberalArea} onChange={event => setSelectedLiberalArea(event.target.value)}>
-                          <option value="전체">전체</option>
-                          {liberalAreas.map(area => <option key={area} value={area}>{area}</option>)}
-                        </select>
-                      </label>
-                    </div>
-                  )}
-                </div>
-
-                <input
-                  className="lecture-search-input"
-                  value={searchText}
-                  onChange={event => setSearchText(event.target.value)}
-                  placeholder="계명대 강의명, 교수명, 강의코드, 강의실 검색"
-                />
+                {lectureSearchField}
                 <div className="lecture-result-list">
                   {filteredLectures.map(lecture => (
                     <button
@@ -1246,16 +1678,79 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
                 </div>
               </section>
             </div>
+            )}
 
             {message && <p className={`setting-message ${messageType}`}>{message}</p>}
 
-            <div className="setting-footer">
-              <span>{activePlan === 'plan1' ? '1안' : '2안'}에 저장됩니다.</span>
-              <button className="btn-primary" type="button" onClick={saveTimetable}>저장</button>
-            </div>
+            {settingTab === 'manual' && (
+              <div className="setting-footer">
+                <span>{activePlan === 'plan1' ? '1안' : '2안'}에 저장됩니다.</span>
+                <button className="btn-primary" type="button" onClick={saveTimetable}>저장</button>
+              </div>
+            )}
           </div>
         </div>
       )}
+
+      {/* 1안 ↔ 2안 비교 모달: 두 안의 그리드를 나란히 + 학점/공강 요약 + 공통/각 안 전용 과목 */}
+      {isLoggedIn && isCompareOpen && (() => {
+        const plansSnapshot = savedPlansRef.current || savedPlans
+        const planEntries = { plan1: plansSnapshot.plan1 || [], plan2: plansSnapshot.plan2 || [] }
+        const summary = { plan1: summarizePlanEntries(planEntries.plan1), plan2: summarizePlanEntries(planEntries.plan2) }
+        const ids1 = new Set(summary.plan1.lectures.map(lecture => lecture.lectureId))
+        const ids2 = new Set(summary.plan2.lectures.map(lecture => lecture.lectureId))
+        const nameOf = id =>
+          (summary.plan1.lectures.find(lecture => lecture.lectureId === id) ||
+            summary.plan2.lectures.find(lecture => lecture.lectureId === id))?.name || id
+        const commonNames = [...ids1].filter(id => ids2.has(id)).map(nameOf)
+        const only1Names = [...ids1].filter(id => !ids2.has(id)).map(nameOf)
+        const only2Names = [...ids2].filter(id => !ids1.has(id)).map(nameOf)
+
+        const renderGrid = entries => (
+          <div className="candidate-preview">
+            <TimetableGrid courses={entries} />
+          </div>
+        )
+
+        return (
+          <div className="compare-backdrop">
+            <div className="compare-panel">
+              <div className="setting-top">
+                <div>
+                  <h3>1안 · 2안 비교</h3>
+                  <p>저장된 두 시간표를 나란히 비교합니다.</p>
+                </div>
+                <button className="btn-text" onClick={() => setIsCompareOpen(false)}>닫기</button>
+              </div>
+
+              <div className="compare-columns">
+                {['plan1', 'plan2'].map(planKey => {
+                  const label = planKey === 'plan1' ? '1안' : '2안'
+                  const sum = summary[planKey]
+                  const entries = planEntries[planKey]
+                  return (
+                    <div key={planKey} className="compare-col">
+                      <div className="compare-col-head">
+                        <strong>{label}</strong>
+                        <span>{sum.count}과목 · {sum.credits}학점 · 공강 {sum.freeDays.length > 0 ? sum.freeDays.join('·') : '없음'}</span>
+                      </div>
+                      {entries.length === 0
+                        ? <p className="compare-empty">아직 저장된 시간표가 없습니다.</p>
+                        : renderGrid(entries)}
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="compare-diff">
+                <div><strong>공통 과목</strong><span>{commonNames.length > 0 ? commonNames.join(', ') : '없음'}</span></div>
+                <div><strong>1안에만</strong><span>{only1Names.length > 0 ? only1Names.join(', ') : '없음'}</span></div>
+                <div><strong>2안에만</strong><span>{only2Names.length > 0 ? only2Names.join(', ') : '없음'}</span></div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
