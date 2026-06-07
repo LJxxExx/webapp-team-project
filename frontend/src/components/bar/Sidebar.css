@@ -122,3 +122,39 @@
   line-height: 1.5;
   padding: 6px 0;
 }
+
+/* ===== 추가 개선: 위험도 기준 그룹화 ===== */
+.assignment-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.assignment-group + .assignment-group {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f3f5;
+}
+
+.assignment-group-title {
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 4px 8px;
+  width: fit-content;
+}
+
+.assignment-group-urgent {
+  background: #ffe3e3;
+  color: #c92a2a;
+}
+
+.assignment-group-soon {
+  background: #fff3bf;
+  color: #e67700;
+}
+
+.assignment-group-normal {
+  background: #e6fcf5;
+  color: #087f5b;
+}

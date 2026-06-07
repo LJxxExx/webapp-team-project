@@ -17,7 +17,6 @@ export default function MyPage({ isLoggedIn, user, onLogin, onLogout, onUpdateUs
     }
   }
 
-  // 학년 옵션 설정
   const gradeOptions = ['1학년', '2학년', '3학년', '4학년']
   if (user.dept === '건축공학과') {
     gradeOptions.push('5학년')
@@ -25,6 +24,13 @@ export default function MyPage({ isLoggedIn, user, onLogin, onLogout, onUpdateUs
   gradeOptions.push('대학원')
 
   const currentGrade = user.grade || '1학년'
+
+  const currentSemester = (() => {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = now.getMonth() + 1
+    return `${year}년 ${month <= 6 ? 1 : 2}학기`
+  })()
 
   return (
     <div className="mypage">
@@ -55,7 +61,7 @@ export default function MyPage({ isLoggedIn, user, onLogin, onLogout, onUpdateUs
         </div>
         <div className="mypage-info-item">
           <span className="mpi-label">학기</span>
-          <span className="mpi-val">2026년 1학기</span>
+          <span className="mpi-val">{currentSemester}</span>
         </div>
       </div>
     </div>

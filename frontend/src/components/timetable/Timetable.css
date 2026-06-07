@@ -167,8 +167,8 @@
 }
 .course-block {
   position: absolute;
-  left: 10px;
-  right: 10px;
+  left: 4px;
+  right: 4px;
   border-radius: 5px;
   padding: 8px 9px;
   font-weight: 500;
@@ -236,13 +236,13 @@
 
 /* 시간표 생성 */
 .timetable-setting-panel {
-  width: min(980px, calc(100vw - 48px));
-  max-height: calc(100vh - 86px);
+  width: min(1200px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
   overflow-y: auto;
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
-  padding: 18px;
+  padding: 22px;
   box-shadow: 0 20px 48px rgba(17, 24, 39, 0.18);
 }
 .timetable-setting-backdrop {
@@ -252,7 +252,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 16px;
   background: rgba(248, 249, 250, 0.72);
 }
 .setting-top,
@@ -722,7 +722,261 @@
   .recommend-condition-grid { grid-template-columns: 1fr; }
 }
 
+/* 모달 안 자동 추천 / 직접 편집 탭 */
+.setting-mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 4px;
+  background: #eef2f7;
+  border-radius: 9px;
+}
+.setting-mode-tabs button {
+  height: 36px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.setting-mode-tabs button:hover:not(.active) { color: #374151; }
+.setting-mode-tabs button.active {
+  background: #fff;
+  color: #2563eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* 추천 액션 버튼 묶음 */
+.recommend-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* 자동 추천 탭의 강의 범위 필터 영역 */
+.recommend-scope {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+  background: #fff;
+}
+.recommend-scope-head { margin-bottom: 8px; }
+.recommend-scope-head > strong {
+  display: block;
+  font-size: 13px;
+  color: #111827;
+}
+.recommend-scope-head > span {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+/* 추천 후보 미리보기 섹션 */
+.recommend-candidates {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #dbe4f3;
+  border-radius: 8px;
+  background: #f7faff;
+}
+.candidate-card-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.candidate-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  text-align: left;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.candidate-card:hover { border-color: #93b4f4; }
+.candidate-card.active {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
+}
+.candidate-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.candidate-card-head strong { font-size: 13px; color: #111827; }
+.candidate-card-head span { font-size: 12px; color: #2563eb; font-weight: 600; }
+.candidate-summary { font-size: 11px; color: #6b7280; }
+.candidate-course-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.candidate-course-chip {
+  padding: 2px 7px;
+  font-size: 11px;
+  color: #374151;
+  background: #eef2f7;
+  border-radius: 999px;
+}
+
+/* 선택한 후보의 축소 시간표 미리보기 — 메인 그리드 스타일 재사용, 행 높이만 축소 */
+.candidate-preview {
+  margin-top: 12px;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  overflow-x: auto;
+}
+.candidate-preview .timetable-body {
+  --row-height: 30px;
+}
+.candidate-preview .course-block strong { font-size: 10px; }
+.candidate-preview .course-block span { font-size: 9px; }
+
+.candidate-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+/* 추천 후보 팝업 (조건 설정 창 위에 뜨는 2단계 팝업) */
+.timetable-candidate-backdrop {
+  z-index: 320;
+  background: rgba(248, 249, 250, 0.96);
+}
+.timetable-candidate-panel {
+  width: min(1280px, calc(100vw - 32px));
+}
+.candidate-modal-top {
+  margin-bottom: 10px;
+}
+.btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  background: #fff;
+  color: #374151;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-back:hover {
+  background: #f3f4f6;
+}
+/* 전용 팝업에서는 미리보기 시간표를 더 크게 — 가독성 확보 */
+.timetable-candidate-panel .candidate-preview .timetable-body {
+  --row-height: 44px;
+}
+.timetable-candidate-panel .candidate-preview .course-block strong {
+  font-size: 11px;
+}
+.timetable-candidate-panel .candidate-preview .course-block span {
+  font-size: 10px;
+}
+
+/* 필수 과목 선택 제목 + 강의 개수 한 줄 배치 (개수 폰트/색/크기는 기존 span 유지) */
+.required-course-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.required-course-head strong {
+  font-size: 13px;
+  color: #111827;
+}
+.required-course-head span {
+  font-size: 11px;
+  color: #6b7280;
+}
+/* 헤더 버튼 묶음 */
+.timetable-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* 1안 ↔ 2안 비교 모달 */
+.compare-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(17, 24, 39, 0.45);
+}
+.compare-panel {
+  width: min(1100px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  padding: 24px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+}
+.compare-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 8px;
+}
+.compare-col {
+  min-width: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfcfe;
+}
+.compare-col-head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 8px;
+}
+.compare-col-head > strong { font-size: 14px; color: #2563eb; }
+.compare-col-head > span { font-size: 12px; color: #6b7280; }
+.compare-empty {
+  margin: 0;
+  padding: 24px 8px;
+  font-size: 12px;
+  color: #9ca3af;
+  text-align: center;
+}
+.compare-diff {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #f3f4f6;
+}
+.compare-diff > div {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 8px;
+  font-size: 12px;
+}
+.compare-diff strong { color: #111827; }
+.compare-diff span { color: #4b5563; }
+
 @media (max-width: 560px) {
+  .compare-columns { grid-template-columns: 1fr; }
   .timetable-title-area {
     align-items: flex-start;
     flex-direction: column;

@@ -60,6 +60,17 @@ function scoreToGrade(score) {
   return GRADE_TABLE[GRADE_TABLE.length - 1]
 }
 
+// 과제가 실제 마감 시간을 지났는지 확인
+function isAssignmentPastDue(assignment) {
+  const dueDate = assignment.dueDate
+  const dueTime = assignment.dueTime || '23:59'
+
+  if (!dueDate) return false
+
+  const due = new Date(`${dueDate}T${dueTime}`)
+  return due < new Date()
+}
+
 /**
  * 과목별 위험도 및 예상 학점 계산
  * @param {object} course  - 과목 데이터 (absent, hwRate, midExam, finalExam, weight)
@@ -162,10 +173,6 @@ function weightSum(w) {
   return (Number(w.att) || 0) + (Number(w.hw) || 0) + (Number(w.mid) || 0) + (Number(w.final) || 0)
 }
 
-// ─────────────────────────────────────────────
-// 컴포넌트
-// ─────────────────────────────────────────────
-
 export default function GradeCalculator({ isLoggedIn, savedLectures, assignments = [], grades, setGrades }) {
 
   const baseCourses = useMemo(() => {
@@ -175,19 +182,41 @@ export default function GradeCalculator({ isLoggedIn, savedLectures, assignments
     return []
   }, [savedLectures])
 
+  // 과제 완료 기반으로 각 강의별 과제 제출률 계산
+  // assignment.subject 와 lecture.name 을 매칭
+  // 완료한 과제 + 마감 지난 과제만 평가 대상으로 사용
+  // 마감 전 미완료 과제는 아직 감점에 반영하지 않음
   const hwRateByCourseName = useMemo(() => {
     const map = {}
+
     baseCourses.forEach(course => {
       const related = assignments.filter(
         a => a.subject && a.subject.trim() === course.name.trim()
       )
+
+      const evaluableAssignments = related.filter(
+        assignment => assignment.isCompleted || isAssignmentPastDue(assignment)
+      )
+
       if (related.length === 0) {
-        map[course.id] = null
+        map[course.id] = {
+          rate: null,
+          status: 'no-assignment',
+        }
+      } else if (evaluableAssignments.length === 0) {
+        map[course.id] = {
+          rate: null,
+          status: 'pending',
+        }
       } else {
-        const done = related.filter(a => a.isCompleted).length
-        map[course.id] = Math.round((done / related.length) * 100)
+        const completedCount = evaluableAssignments.filter(a => a.isCompleted).length
+        map[course.id] = {
+          rate: Math.round((completedCount / evaluableAssignments.length) * 100),
+          status: 'rated',
+        }
       }
     })
+
     return map
   }, [baseCourses, assignments])
 
@@ -201,20 +230,27 @@ export default function GradeCalculator({ isLoggedIn, savedLectures, assignments
     setSelectedId(baseCourses[0]?.id)
   }, [baseCourses])
 
-  const [inputError, setInputError]   = useState({})
-  const [weightError, setWeightError] = useState(false)
+  const [inputError, setInputError] = useState({})
 
   const effectiveSelectedId = baseCourses.find(c => c.id === selectedId)
     ? selectedId : baseCourses[0]?.id
 
-  const courses = useMemo(() => baseCourses.map(c => ({
-    ...c,
-    absent:     stats[c.id]?.absent    ?? 0,
-    midExam:    stats[c.id]?.midExam   ?? null,
-    finalExam:  stats[c.id]?.finalExam ?? null,
-    weight:     stats[c.id]?.weight    ?? { ...DEFAULT_WEIGHT },
-    hwRate:     hwRateByCourseName[c.id],
-  })), [baseCourses, stats, hwRateByCourseName])
+  const courses = useMemo(() => baseCourses.map(c => {
+    const hwInfo = hwRateByCourseName[c.id] ?? {
+      rate: null,
+      status: 'no-assignment',
+    }
+
+    return {
+      ...c,
+      absent:     stats[c.id]?.absent    ?? 0,
+      midExam:    stats[c.id]?.midExam   ?? null,
+      finalExam:  stats[c.id]?.finalExam ?? null,
+      weight:     stats[c.id]?.weight    ?? { ...DEFAULT_WEIGHT },
+      hwRate:     hwInfo.rate,
+      hwStatus:   hwInfo.status,
+    }
+  }), [baseCourses, stats, hwRateByCourseName])
 
   const courseRisks = useMemo(() => {
     const map = {}
@@ -258,7 +294,6 @@ export default function GradeCalculator({ isLoggedIn, savedLectures, assignments
     setStats(prev => {
       const cur = prev[effectiveSelectedId] ?? {}
       const newWeight = { ...(cur.weight ?? DEFAULT_WEIGHT), [key]: num }
-      setWeightError(weightSum(newWeight) !== 100)
       return { ...prev, [effectiveSelectedId]: { ...cur, weight: newWeight } }
     })
   }, [effectiveSelectedId])
@@ -280,6 +315,26 @@ export default function GradeCalculator({ isLoggedIn, savedLectures, assignments
   const selectedStats  = stats[effectiveSelectedId] ?? {}
   const selectedWeight = selectedStats.weight ?? { ...DEFAULT_WEIGHT }
   const wSum           = weightSum(selectedWeight)
+  const weightError    = wSum !== 100
+
+  const selectedHwInfo = hwRateByCourseName[effectiveSelectedId] ?? {
+    rate: null,
+    status: 'no-assignment',
+  }
+
+  const hwRateLabel =
+    selectedHwInfo.status === 'no-assignment'
+      ? '과제 없음'
+      : selectedHwInfo.status === 'pending'
+        ? '진행 중'
+        : `${hwRate}%`
+
+  const hwRateHint =
+    selectedHwInfo.status === 'no-assignment'
+      ? '과제 페이지에서 과제를 등록하면 이곳에 반영됩니다'
+      : selectedHwInfo.status === 'pending'
+        ? '마감 전 미완료 과제는 아직 감점에 반영되지 않습니다'
+        : '완료한 과제와 마감된 과제를 기준으로 반영됩니다'
 
   return (
     <LoginRequiredSection isLoggedIn={isLoggedIn} className="grade-calc">
@@ -331,15 +386,36 @@ export default function GradeCalculator({ isLoggedIn, savedLectures, assignments
                   </div>
                 </div>
                 <div className="gcc-bars">
-                  {[['출석률', r.attRate], ['과제', r.hwRate]].map(([lbl, pct]) => (
-                    <div key={lbl} className="gcc-bar-row">
-                      <span className="gcc-bar-label">{lbl}</span>
-                      <div className="gcc-bar-track">
-                        <div className="gcc-bar-fill" style={{ width: `${pct}%`, background: col.bar }} />
-                      </div>
-                      <span className="gcc-bar-pct">{pct}%</span>
+                  <div className="gcc-bar-row">
+                    <span className="gcc-bar-label">출석률</span>
+                    <div className="gcc-bar-track">
+                      <div
+                        className="gcc-bar-fill"
+                        style={{ width: `${r.attRate}%`, background: col.bar }}
+                      />
                     </div>
-                  ))}
+                    <span className="gcc-bar-pct">{r.attRate}%</span>
+                  </div>
+
+                  <div className="gcc-bar-row">
+                    <span className="gcc-bar-label">과제</span>
+                    <div className="gcc-bar-track">
+                      <div
+                        className="gcc-bar-fill"
+                        style={{
+                          width: c.hwStatus === 'rated' ? `${r.hwRate}%` : '0%',
+                          background: col.bar,
+                        }}
+                      />
+                    </div>
+                    <span className="gcc-bar-pct">
+                      {c.hwStatus === 'no-assignment'
+                        ? '없음'
+                        : c.hwStatus === 'pending'
+                          ? '진행'
+                          : `${r.hwRate}%`}
+                    </span>
+                  </div>
                 </div>
               </div>
             )
@@ -373,7 +449,7 @@ export default function GradeCalculator({ isLoggedIn, savedLectures, assignments
           <div className="gcd-stats">
             {[
               ['출석률',      `${attRate}%`],
-              ['과제 제출률',  `${hwRate}%`],
+              ['과제 제출률',  hwRateLabel],
               ['시험 평균',    `${examWeightedScore}점`],
               ['예상 점수',    `${approxScore}점`],
             ].map(([l, v]) => (
@@ -499,8 +575,10 @@ export default function GradeCalculator({ isLoggedIn, savedLectures, assignments
             <div className="gcd-input-row">
               <label className="gcd-input-label">과제 제출률</label>
               <div className="gcd-hw-rate-display">
-                {hwRateByCourseName[effectiveSelectedId] === null ? (
+                {selectedHwInfo.status === 'no-assignment' ? (
                   <span className="gcd-hw-rate-none">등록된 과제 없음</span>
+                ) : selectedHwInfo.status === 'pending' ? (
+                  <span className="gcd-hw-rate-none">진행 중</span>
                 ) : (
                   <>
                     <div className="gcd-hw-rate-bar-track">
@@ -517,7 +595,7 @@ export default function GradeCalculator({ isLoggedIn, savedLectures, assignments
                     <span className="gcd-hw-rate-pct">{hwRate}%</span>
                   </>
                 )}
-                <span className="gcd-hw-rate-hint">과제 페이지 체크리스트에서 자동 반영됩니다</span>
+                <span className="gcd-hw-rate-hint">{hwRateHint}</span>
               </div>
             </div>
 

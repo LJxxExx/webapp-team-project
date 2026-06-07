@@ -1,101 +1,10 @@
 {
   "1234567": {
-    "timetable": [
-      {
-        "id": "KMU_EAA_23482_01-0",
-        "lectureId": "KMU_EAA_23482_01",
-        "name": "건축개론",
-        "professor": "이종원",
-        "room": "덕래관 7118",
-        "lectureCode": "23482",
-        "sectionCode": "01",
-        "credit": 3,
-        "color": "#A7D8DE",
-        "colorAssigned": true,
-        "day": "월",
-        "startHour": 12,
-        "startMinute": 0,
-        "endHour": 13,
-        "endMinute": 15
-      },
-      {
-        "id": "KMU_EAA_23482_01-1",
-        "lectureId": "KMU_EAA_23482_01",
-        "name": "건축개론",
-        "professor": "이종원",
-        "room": "덕래관 7118",
-        "lectureCode": "23482",
-        "sectionCode": "01",
-        "credit": 3,
-        "color": "#A7D8DE",
-        "colorAssigned": true,
-        "day": "목",
-        "startHour": 9,
-        "startMinute": 0,
-        "endHour": 10,
-        "endMinute": 15
-      },
-      {
-        "id": "KMU_EAA_21291_01-0",
-        "lectureId": "KMU_EAA_21291_01",
-        "name": "서양건축사",
-        "professor": "이종원",
-        "room": "공학2호관 2118",
-        "lectureCode": "21291",
-        "sectionCode": "01",
-        "credit": 3,
-        "color": "#D7C6F2",
-        "colorAssigned": true,
-        "day": "화",
-        "startHour": 9,
-        "startMinute": 0,
-        "endHour": 10,
-        "endMinute": 15
-      },
-      {
-        "id": "KMU_EAA_21291_01-1",
-        "lectureId": "KMU_EAA_21291_01",
-        "name": "서양건축사",
-        "professor": "이종원",
-        "room": "공학2호관 2118",
-        "lectureCode": "21291",
-        "sectionCode": "01",
-        "credit": 3,
-        "color": "#D7C6F2",
-        "colorAssigned": true,
-        "day": "목",
-        "startHour": 15,
-        "startMinute": 0,
-        "endHour": 16,
-        "endMinute": 15
-      }
-    ],
+    "timetable": [],
     "assignments": [],
     "grades": {}
   },
   "20220001": {
-    "timetable": [],
-    "assignments": [
-      {
-        "id": 1,
-        "title": "JWT 보안 레포트 제출",
-        "dueDate": "2026-06-01",
-        "dueTime": "23:59",
-        "priority": "긴급",
-        "isCompleted": false
-      },
-      {
-        "id": 2,
-        "title": "데이터베이스 암호화 복습",
-        "dueDate": "2026-06-04",
-        "dueTime": "23:59",
-        "priority": "높음",
-        "isCompleted": false
-      }
-    ],
-    "grades": {}
-  },
-  "5763254": {
     "timetable": [],
     "assignments": [],
     "grades": {}
