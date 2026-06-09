@@ -87,7 +87,7 @@ function isOverdue(assignment) {
 }
 
 function getChecklistRate(checklist) {
-  if (!checklist || checklist.length === 0) return 0
+  if (!checklist || checklist.length === 0) return 100
 
   const checkedCount = checklist.filter(item => item.checked).length
   return Math.round((checkedCount / checklist.length) * 100)
@@ -118,22 +118,6 @@ function getDateStatus(assignments) {
   })
 
   return status
-}
-
-function getTotalCompletionRate(assignments) {
-  if (assignments.length === 0) return 0
-
-  const completedCount = assignments.filter(a => a.isCompleted).length
-  return Math.round((completedCount / assignments.length) * 100)
-}
-
-function getUpcomingCompletionRate(assignments) {
-  const upcomingAssignments = assignments.filter(a => !isOverdue(a))
-
-  if (upcomingAssignments.length === 0) return 0
-
-  const completedCount = upcomingAssignments.filter(a => a.isCompleted).length
-  return Math.round((completedCount / upcomingAssignments.length) * 100)
 }
 
 function getAssignmentSummary(assignments) {
@@ -219,49 +203,6 @@ function getRiskInfo(assignment) {
   }
 
   return { label: '안전', className: 'ap-risk-safe' }
-}
-
-function ProgressCircle({ progress, title }) {
-  const radius = 58
-  const strokeWidth = 12
-  const normalizedRadius = radius - strokeWidth / 2
-  const circumference = normalizedRadius * 2 * Math.PI
-  const strokeDashoffset = circumference - (progress / 100) * circumference
-
-  return (
-    <div className="ap-progress-circle-wrap">
-      <svg width={radius * 2} height={radius * 2} className="ap-progress-circle-svg">
-        <circle
-          stroke="#e9ecef"
-          fill="transparent"
-          strokeWidth={strokeWidth}
-          r={normalizedRadius}
-          cx={radius}
-          cy={radius}
-        />
-
-        <circle
-          stroke="#2ecc71"
-          fill="transparent"
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
-          r={normalizedRadius}
-          cx={radius}
-          cy={radius}
-          className="ap-progress-circle-value"
-        />
-      </svg>
-
-      <div className="ap-progress-circle-text">
-        <strong>{progress}%</strong>
-        <span>완료</span>
-      </div>
-
-      <p className="ap-progress-caption">{title}</p>
-    </div>
-  )
 }
 
 export default function AssignmentPage({
@@ -375,6 +316,24 @@ export default function AssignmentPage({
 
   function removeChecklistItem(itemId) {
     setChecklist(prev => prev.filter(item => item.id !== itemId))
+  }
+
+  function clearChecklist() {
+    if (checklist.length === 0) return
+    setChecklist([])
+  }
+
+  function completeAssignmentChecklist(assignment) {
+    if (!assignment.checklist || assignment.checklist.length === 0) return
+
+    onUpdateAssignment({
+      ...assignment,
+      checklist: assignment.checklist.map(item => ({ ...item, checked: true })),
+    })
+  }
+
+  function changeProgress(delta) {
+    setProgress(prev => Math.min(100, Math.max(0, Number(prev) + delta)))
   }
 
   function toggleFormChecklist(itemId) {
@@ -491,9 +450,6 @@ ${note}`
   const mistakeHints = getMistakeHints(assignments)
   const overdueAssignments = getOverdueAssignments(assignments)
 
-  const totalCompletionRate = getTotalCompletionRate(assignments)
-  const upcomingCompletionRate = getUpcomingCompletionRate(assignments)
-
   return (
     <LoginRequiredSection isLoggedIn={isLoggedIn} className="assign-page">
       {pageMode === 'calendar' && (
@@ -609,11 +565,6 @@ ${note}`
               <span><i className="ap-legend-dot ap-danger-dot" />긴급</span>
               <span><i className="ap-legend-dot ap-completed-dot" />완료</span>
             </div>
-          </div>
-
-          <div className="ap-card ap-progress-card">
-            <ProgressCircle progress={totalCompletionRate} title="전체 과제 완료율" />
-            <ProgressCircle progress={upcomingCompletionRate} title="남은 과제 완료율" />
           </div>
 
           <div className="ap-card ap-stats-card">
@@ -753,13 +704,25 @@ ${note}`
               <div className="ap-form-row">
                 <div className="ap-form-group">
                   <label>진행도: {progress}%</label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={progress}
-                    onChange={e => setProgress(e.target.value)}
-                  />
+                  <div className="ap-progress-stepper" role="group" aria-label="진행도 5% 단위 조절">
+                    <button
+                      type="button"
+                      onClick={() => changeProgress(-5)}
+                      disabled={Number(progress) <= 0}
+                      aria-label="진행도 5% 감소"
+                    >
+                      &lt;
+                    </button>
+                    <strong>{progress}%</strong>
+                    <button
+                      type="button"
+                      onClick={() => changeProgress(5)}
+                      disabled={Number(progress) >= 100}
+                      aria-label="진행도 5% 증가"
+                    >
+                      &gt;
+                    </button>
+                  </div>
                 </div>
 
                 <div className="ap-form-group">
@@ -845,7 +808,21 @@ ${note}`
               <div className="ap-form-group">
                 <label>현재 체크리스트 항목</label>
 
+                <div className="ap-checklist-actions">
+                  <button
+                    type="button"
+                    className="ap-checklist-clear-btn"
+                    onClick={clearChecklist}
+                    disabled={checklist.length === 0}
+                  >
+                    전체 삭제
+                  </button>
+                </div>
+
                 <div className="ap-form-checklist-preview">
+                  {checklist.length === 0 && (
+                    <p className="ap-empty-checklist">체크리스트 항목이 없습니다. 완료율은 100%로 처리됩니다.</p>
+                  )}
                   {checklist.map(item => (
                     <div key={item.id} className="ap-form-checklist-item">
                       <label>
@@ -978,6 +955,17 @@ ${note}`
                         <h5>실수 예방 체크리스트</h5>
                         <span>{checklistRate}% 완료</span>
                       </div>
+
+                      {(assignment.checklist || []).length > 0 && checklistRate < 100 && (
+                        <div className="ap-checklist-card-actions">
+                          <button
+                            type="button"
+                            onClick={() => completeAssignmentChecklist(assignment)}
+                          >
+                            전체 완료
+                          </button>
+                        </div>
+                      )}
 
                       <div className="ap-checklist-rate-bar">
                         <div
