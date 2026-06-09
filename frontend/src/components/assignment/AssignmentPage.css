@@ -232,55 +232,6 @@
   background: #868e96;
 }
 
-.ap-progress-card {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 35px;
-  flex-wrap: wrap;
-}
-
-.ap-progress-circle-wrap {
-  position: relative;
-  text-align: center;
-  padding: 10px 0;
-}
-
-.ap-progress-circle-svg {
-  transform: rotate(-90deg);
-}
-
-.ap-progress-circle-value {
-  transition: stroke-dashoffset 0.4s ease;
-}
-
-.ap-progress-circle-text {
-  position: absolute;
-  top: 42px;
-  left: 0;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.ap-progress-circle-text strong {
-  font-size: 25px;
-  color: #2f9e44;
-}
-
-.ap-progress-circle-text span {
-  font-size: 12px;
-  color: #777;
-}
-
-.ap-progress-caption {
-  margin-top: 10px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #333;
-}
-
 .ap-detail-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -338,6 +289,43 @@
   gap: 12px;
 }
 
+.ap-progress-stepper {
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
+  align-items: center;
+  gap: 8px;
+}
+
+.ap-progress-stepper button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  background: #fff;
+  color: #333;
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ap-progress-stepper button:disabled {
+  color: #adb5bd;
+  background: #f8f9fa;
+  cursor: not-allowed;
+}
+
+.ap-progress-stepper strong {
+  height: 36px;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  background: #f8f9fa;
+  color: #111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+}
+
 .ap-custom-checklist-row {
   display: flex;
   gap: 8px;
@@ -361,6 +349,59 @@
   display: flex;
   flex-direction: column;
   gap: 7px;
+}
+
+.ap-checklist-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.ap-checklist-actions button {
+  border: none;
+  border-radius: 7px;
+  padding: 6px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ap-checklist-clear-btn {
+  background: #ffe3e3;
+  color: #e03131;
+}
+
+.ap-checklist-actions button:disabled {
+  background: #f1f3f5;
+  color: #adb5bd;
+  cursor: not-allowed;
+}
+
+.ap-empty-checklist {
+  margin: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f8f9fa;
+  color: #666;
+  font-size: 13px;
+  text-align: center;
+}
+
+.ap-checklist-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: 6px 0 8px;
+}
+
+.ap-checklist-card-actions button {
+  border: none;
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-radius: 7px;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .ap-form-checklist-item {
@@ -642,10 +683,6 @@
     padding: 6px;
   }
 
-  .ap-progress-card {
-    flex-direction: column;
-    gap: 18px;
-  }
 }
 
 @media (max-width: 600px) {
