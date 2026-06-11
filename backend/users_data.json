@@ -121,7 +121,108 @@
         "endMinute": 45
       }
     ],
-    "assignments": [],
+    "assignments": [
+      {
+        "id": 1780907613831,
+        "title": "이산수학 기말 과제",
+        "subject": "이산수학",
+        "dueDate": "2026-06-11",
+        "dueTime": "23:59",
+        "priority": "보통",
+        "progress": 0,
+        "assignmentType": "일반",
+        "isCompleted": true,
+        "memo": "",
+        "mistakeNote": "",
+        "checklist": [
+          {
+            "id": 1,
+            "text": "제출 파일 업로드 확인",
+            "checked": false
+          },
+          {
+            "id": 2,
+            "text": "파일명 형식 확인",
+            "checked": false
+          },
+          {
+            "id": 3,
+            "text": "제출 형식 확인",
+            "checked": false
+          },
+          {
+            "id": 4,
+            "text": "마감 시간 확인",
+            "checked": false
+          },
+          {
+            "id": 5,
+            "text": "과제 요구사항 재확인",
+            "checked": false
+          },
+          {
+            "id": 6,
+            "text": "이름/학번 기재 확인",
+            "checked": false
+          },
+          {
+            "id": 7,
+            "text": "제출 후 최종 확인",
+            "checked": false
+          }
+        ]
+      },
+      {
+        "id": 1780907758829,
+        "title": "이산수학 과제",
+        "subject": "이산수학",
+        "dueDate": "2026-06-03",
+        "dueTime": "23:59",
+        "priority": "보통",
+        "progress": 0,
+        "assignmentType": "일반",
+        "isCompleted": false,
+        "memo": "",
+        "mistakeNote": "",
+        "checklist": [
+          {
+            "id": 1,
+            "text": "제출 파일 업로드 확인",
+            "checked": false
+          },
+          {
+            "id": 2,
+            "text": "파일명 형식 확인",
+            "checked": false
+          },
+          {
+            "id": 3,
+            "text": "제출 형식 확인",
+            "checked": false
+          },
+          {
+            "id": 4,
+            "text": "마감 시간 확인",
+            "checked": false
+          },
+          {
+            "id": 5,
+            "text": "과제 요구사항 재확인",
+            "checked": false
+          },
+          {
+            "id": 6,
+            "text": "이름/학번 기재 확인",
+            "checked": false
+          },
+          {
+            "id": 7,
+            "text": "제출 후 최종 확인",
+            "checked": false
+          }
+        ]
+      }
+    ],
     "grades": {}
   },
   "20220001": {

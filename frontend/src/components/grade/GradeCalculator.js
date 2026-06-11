@@ -227,8 +227,11 @@ export default function GradeCalculator({ isLoggedIn, savedLectures, assignments
   const [selectedId, setSelectedId] = useState(() => baseCourses[0]?.id)
 
   useEffect(() => {
-    setSelectedId(baseCourses[0]?.id)
-  }, [baseCourses])
+  setSelectedId(prev => {
+    const isValid = baseCourses.some(c => c.id === prev)
+    return isValid ? prev : baseCourses[0]?.id
+  })
+}, [baseCourses])
 
   const [inputError, setInputError] = useState({})
 
