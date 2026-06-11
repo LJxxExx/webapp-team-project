@@ -30,13 +30,13 @@ const DEFAULT_WEIGHT = { att: 30, hw: 30, mid: 20, final: 20 }
 
 const GRADE_TABLE = [
   { grade: 'A+', gpa: 4.5, minScore: 95 },
-  { grade: 'A',  gpa: 4.0, minScore: 90 },
-  { grade: 'B+', gpa: 3.5, minScore: 85 },
-  { grade: 'B',  gpa: 3.0, minScore: 80 },
-  { grade: 'C+', gpa: 2.5, minScore: 75 },
-  { grade: 'C',  gpa: 2.0, minScore: 70 },
-  { grade: 'D+', gpa: 1.5, minScore: 65 },
-  { grade: 'D',  gpa: 1.0, minScore: 60 },
+  { grade: 'A',  gpa: 4.0, minScore: 87 },
+  { grade: 'B+', gpa: 3.5, minScore: 76 },
+  { grade: 'B',  gpa: 3.0, minScore: 65 },
+  { grade: 'C+', gpa: 2.5, minScore: 57 },
+  { grade: 'C',  gpa: 2.0, minScore: 49 },
+  { grade: 'D+', gpa: 1.5, minScore: 33 },
+  { grade: 'D',  gpa: 1.0, minScore: 17 },
   { grade: 'F',  gpa: 0.0, minScore: 0  },
 ]
 
