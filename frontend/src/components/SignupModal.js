@@ -14,6 +14,24 @@ export default function SignupModal({ isOpen, onClose }) {
 
   if (!isOpen) return null
 
+  const hasInput = email.trim() !== '' || studentId.trim() !== '' || department.trim() !== '' || password.trim() !== '' || confirmPassword.trim() !== ''
+
+  const handleOverlayClick = () => {
+    if (hasInput) {
+      if (window.confirm('입력한 정보가 사라집니다. 정말 닫으시겠습니까?')) {
+        setEmail('')
+        setStudentId('')
+        setDepartment('')
+        setPassword('')
+        setConfirmPassword('')
+        setErrorMsg('')
+        onClose()
+      }
+    } else {
+      onClose()
+    }
+  }
+
   const handleSignup = async (e) => {
     e.preventDefault()
     setErrorMsg('')
@@ -53,7 +71,7 @@ export default function SignupModal({ isOpen, onClose }) {
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleOverlayClick}>
       <div className="signup-modal-content" onClick={(e) => e.stopPropagation()}>
         <h2>회원가입</h2>
         <form onSubmit={handleSignup}>

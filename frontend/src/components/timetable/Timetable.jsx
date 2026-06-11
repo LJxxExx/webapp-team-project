@@ -460,6 +460,8 @@ function buildTimetableCandidate({ requiredList = [], orderedCandidates = [], ta
 
   for (const lecture of orderedCandidates) {
     if (lectures.length >= maxLectures || credits >= targetCredits) break
+    // 이 강의를 넣으면 희망 학점(최대 학점)을 초과하는 경우 건너뛰고, 남은 학점에 맞는 강의를 탐색
+    if (credits + Number(lecture.credit || 0) > targetCredits) continue
     tryAdd(lecture)
   }
 
@@ -557,6 +559,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('success')
   const [toastMessage, setToastMessage] = useState('')
+  const [toastKey, setToastKey] = useState(0) // 토스트를 띄울 때마다 +1 → div key 변경으로 등장 애니메이션 재생
   const [requiredLectureIds, setRequiredLectureIds] = useState([])
   const [freeDays, setFreeDays] = useState([])
   const [preferredTime, setPreferredTime] = useState('전체')
@@ -580,6 +583,12 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     setMessageType(type)
   }
 
+  // 토스트 표시 — 호출할 때마다 key를 올려서, 같은 메시지/연속 전환에도 매번 다시 뜨게 함
+  function showToast(text) {
+    setToastMessage(text)
+    setToastKey(prev => prev + 1)
+  }
+
   useEffect(() => {
     if (!toastMessage) return undefined
 
@@ -588,7 +597,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     }, 1800)
 
     return () => clearTimeout(timer)
-  }, [toastMessage])
+  }, [toastMessage, toastKey])
 
   // ===== 파생 값 (useMemo로 캐시: 입력이 바뀔 때만 재계산) =====
   // 현재 시간표에 들어있는 강의 id 집합 (중복 추가 방지용)
@@ -1140,7 +1149,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
       return nextPlans
     })
     closeSettingPanel()
-    setToastMessage(`${planLabel}에 적용했어요. (${candidate.lectures.length}과목, ${candidate.credits}학점)`)
+    showToast(`${planLabel}에 적용했어요. (${candidate.lectures.length}과목, ${candidate.credits}학점)`)
   }
 
   function openSavedPlan(planKey) {
@@ -1150,7 +1159,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     setCourses(plansSnapshot[planKey] || [])
     setRecommendMode('condition')
     clearRecommendCandidates()
-    setToastMessage(`${planLabel}을 불러왔습니다.`)
+    showToast(`${planLabel}을 불러왔습니다.`)
     showMessage(`${planLabel}을 불러왔습니다.`)
   }
 
@@ -1158,7 +1167,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
     // 추가/삭제는 현재 1안/2안 state에 이미 반영되어 있으므로 여기서는 팝업만 닫고 저장 콜백 호출
     if (onSaveData) onSaveData()
     closeSettingPanel()
-    setToastMessage(`${activePlan === 'plan1' ? '1안' : '2안'}이 저장되었습니다.`)
+    showToast(`${activePlan === 'plan1' ? '1안' : '2안'}이 저장되었습니다.`)
   }
 
   // 강의 범위 필터(전공/교양 + 대학·학부·전공 + 학년/학점) — 자동 추천/직접 편집 두 탭에서 공유
@@ -1340,7 +1349,7 @@ export default function Timetable({ isLoggedIn, lectureCatalog = [], savedPlans,
           <TimetableGrid courses={courses} showCode />
         </div>
         {toastMessage && (
-          <div className="timetable-toast" role="status" aria-live="polite">
+          <div key={toastKey} className="timetable-toast" role="status" aria-live="polite">
             {toastMessage}
           </div>
         )}

@@ -13,6 +13,21 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
 
   if (!isOpen) return null
 
+  const hasInput = studentId.trim() !== '' || password.trim() !== ''
+
+  const handleOverlayClick = () => {
+    if (hasInput) {
+      if (window.confirm('입력한 정보가 사라집니다. 정말 닫으시겠습니까?')) {
+        setStudentId('')
+        setPassword('')
+        setErrorMsg('')
+        onClose()
+      }
+    } else {
+      onClose()
+    }
+  }
+
   const handleLogin = async (e) => {
     e.preventDefault()
     setErrorMsg('')
@@ -33,7 +48,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleOverlayClick}>
       <div className="login-modal-content" onClick={(e) => e.stopPropagation()}>
         <h2>로그인</h2>
         <form onSubmit={handleLogin}>

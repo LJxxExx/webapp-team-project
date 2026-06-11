@@ -302,7 +302,7 @@ export default function App() {
               onRefreshData={refreshUserData}
               onSaveData={() => saveUserData({ ...dataRef.current, timetable: savedPlans[activePlan] || [] })}
             />
-            <AcademicSection enrolledCourses={savedLectures}/>
+            <AcademicSection isLoggedIn={isLoggedIn} enrolledCourses={savedLectures}/>
           </>
         )
       case 'grade':
