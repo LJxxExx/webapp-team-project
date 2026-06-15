@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import axios from 'axios'
-import SignupModal from './SignupModal'
+import SignupModal from '../SignupModal'
 import './LoginModal.css'
 
 const API_BASE_URL = 'http://localhost:8000'
